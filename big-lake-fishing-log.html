@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Big Lake Fishing Log</title>
+  <style>
+    :root { --bg:#0e131b; --card:#151b26; --ink:#e8eefb; --muted:#9fb0c8; --accent:#52a7ff; --accent-2:#2ed0a2; --danger:#ff6b6b; --warning:#ffd166; --good:#06d6a0; --shadow:rgba(0,0,0,.35); --radius:18px; }
+    html, body { height:100%; } body { margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,sans-serif; background:var(--bg); color:var(--ink); }
+    .wrap { max-width: 880px; margin:0 auto; padding: 16px; }
+    header { position: sticky; top:0; z-index: 20; background: linear-gradient(180deg, rgba(14,19,27,0.98), rgba(14,19,27,0.86)); backdrop-filter: blur(6px); border-bottom: 1px solid #1f2a3a; }
+    .bar { display:flex; gap:8px; align-items:center; padding: 10px 16px; } .title { font-weight:700; letter-spacing:.3px; }
+    .tabs { display:flex; gap:8px; overflow:auto; padding: 6px 16px 12px; }
+    .tab-btn { flex:1; text-align:center; border:1px solid #26364c; background:#111622; color:var(--muted); padding:10px; border-radius:12px; font-weight:600; }
+    .tab-btn.active { color:#fff; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(82,167,255,.15) inset; }
+    .card { background:var(--card); border:1px solid #243349; border-radius: var(--radius); box-shadow: 0 8px 24px var(--shadow); padding:14px; }
+    .grid { display:grid; grid-template-columns: 1fr; gap: 12px; } @media(min-width:720px){ .grid.cols-2{ grid-template-columns: 1fr 1fr; } .grid.cols-3{ grid-template-columns: repeat(3,1fr);} }
+    label { display:block; font-size: 13px; color: var(--muted); margin-bottom:6px; } input, select, textarea, button { width:100%; box-sizing:border-box; border-radius:12px; border:1px solid #2a3b54; background:#0c111a; color:#fff; padding:12px; font-size:16px; } select { padding-right:24px; } textarea { min-height:84px; }
+    .row { display:flex; gap:10px; } .row > * { flex:1; } .chip { display:inline-flex; align-items:center; gap:8px; background:#0c111a; border:1px dashed #2f3f57; padding:8px 10px; border-radius:999px; font-size:13px; color:var(--muted); }
+    .muted { color:var(--muted); font-size:13px; } .hint { font-size:12px; color:#8cabd8; margin-top:6px; }
+    .btn { background:linear-gradient(180deg,#0e7eed,#0a5fc1); border:none; font-weight:700; letter-spacing:.3px; cursor:pointer; }
+    .btn.secondary { background:#0c111a; border:1px solid #2b3e59; color:#cfe3ff; } .btn.good { background:linear-gradient(180deg,#14bd8d,#0da77a); }
+    .btn.warn { background:linear-gradient(180deg,#ffb703,#f77f00); } .btn.danger { background:linear-gradient(180deg,#ff4d4d,#bf2e2e); }
+    table { width:100%; border-collapse: collapse; } th, td { padding:10px; border-bottom:1px solid #223145; text-align:left; }
+    th { color:#b8cdf1; font-weight:700; font-size:13px; position: sticky; top:0; background:#162133; z-index:1; } tr:hover td { background:#121b2b; }
+    .pill { padding:4px 8px; border-radius:9999px; font-size:12px; display:inline-block; } .pill.badge { background:#0c111a; border:1px solid #2f3f57; color:#b9c9e3; }
+    .spacer { height:10px; } .section-title { font-weight:800; letter-spacing:.4px; font-size:18px; } .footer { color:var(--muted); text-align:center; font-size:12px; padding:16px 0 32px; }
+    .hide { display:none !important; }
+    .thumb { width:72px; height:72px; object-fit:cover; border-radius:10px; border:1px solid #2a3b54; }
+    .thumb-row { display:flex; gap:10px; align-items:center; }
+    .lightbox { position:fixed; inset:0; background:rgba(0,0,0,.85); display:flex; align-items:center; justify-content:center; padding:20px; z-index:9999; }
+    .lightbox img { max-width:95vw; max-height:85vh; border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.6); }
+    .lightbox .close { position:absolute; top:14px; right:14px; }
+  .invalid { border-color: var(--danger)!important; }
+  .badge-count { background:var(--accent); color:#fff; font-size:11px; padding:2px 6px; border-radius:999px; margin-left:6px; line-height:1; }
+  .quick-hidden { display:none !important; }
+  .prefs-row { display:flex; gap:12px; flex-wrap:wrap; }
+  .switch { position:relative; display:inline-flex; align-items:center; gap:6px; font-size:14px; cursor:pointer; }
+  .switch input { width:auto; accent-color: var(--accent); }
+  #analytics { font-size:13px; line-height:1.5; }
+  #analytics h4 { margin:10px 0 4px; font-size:14px; letter-spacing:.5px; text-transform:uppercase; color:var(--muted); }
+  .spark { display:inline-block; background:var(--accent); height:10px; margin-right:2px; border-radius:2px; }
+  #toast { position:fixed; left:50%; transform:translateX(-50%); bottom:16px; background:#142032; color:#fff; padding:10px 16px; border:1px solid #21405c; border-radius:14px; box-shadow:0 6px 16px rgba(0,0,0,.4); display:none; z-index:99999; }
+  #toast button { width:auto; padding:6px 10px; margin-left:10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <div style="flex:1">
+        <div class="title">Big Lake Fishing Log</div>
+        <div class="muted">Offline-first trip logger • Saves to your phone (localStorage + IndexedDB for photos)</div>
+      </div>
+      <button class="btn secondary" id="addToHome" title="How to add to Home Screen">Add to Home</button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="setup">Trip Setup</button>
+  <button class="tab-btn" data-tab="log">Catch Log <span id="logCountBadge" class="badge-count" style="display:none">0</span></button>
+      <button class="tab-btn" data-tab="review">Review & Export</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </div>
+  </header>
+  <main class="wrap">
+    <section id="tab-setup" class="grid">
+      <div class="card">
+        <div class="section-title">Trip header</div>
+        <div class="grid cols-2">
+          <div><label for="tripDate">Date</label><input id="tripDate" type="date" /></div>
+          <div><label for="startTime">Start time</label><input id="startTime" type="time" /></div>
+          <div><label for="port">Port / Area</label><input id="port" placeholder="e.g., St. Joseph, 80-160 FOW" /></div>
+          <div><label for="boat">Boat</label><input id="boat" placeholder="Boat name" /></div>
+          <div><label for="crew">Crew</label><input id="crew" placeholder="Who’s aboard" /></div>
+          <div><label for="hours">Planned hours</label><input id="hours" type="number" inputmode="decimal" placeholder="e.g., 5" /></div>
+        </div>
+        <div class="grid cols-3">
+          <div><label for="airTemp">Air temp (°F)</label><input id="airTemp" type="number" inputmode="decimal" /></div>
+          <div><label for="surfaceTemp">Surface temp (°F)</label><input id="surfaceTemp" type="number" inputmode="decimal" /></div>
+          <div><label for="thermocline">Thermocline depth (ft)</label><input id="thermocline" type="number" inputmode="numeric" /></div>
+          <div><label for="wind">Wind (dir/speed)</label><input id="wind" placeholder="e.g., WNW 10" /></div>
+          <div><label for="waves">Waves (ft)</label><input id="waves" type="number" inputmode="decimal" /></div>
+          <div><label for="clouds">Cloud cover</label><select id="clouds"></select></div>
+        </div>
+        <div class="hint">Tip: You can edit dropdown options under <b>Settings → Lists</b>.</div>
+      </div>
+      <div class="card">
+        <div class="section-title">Save / load trip</div>
+        <div class="grid cols-2">
+          <button class="btn good" id="saveTrip">Save header</button>
+          <button class="btn secondary" id="newTrip">New trip</button>
+        </div>
+        <div class="spacer"></div>
+        <label for="tripSelect">Current trip</label>
+        <select id="tripSelect"></select>
+      </div>
+    </section>
+    <section id="tab-log" class="grid hide">
+      <div class="card">
+        <div class="section-title">Log a catch / bite</div>
+        <div class="grid cols-3">
+          <div><label for="time">Time</label><input id="time" type="time" /></div>
+          <div><label for="platform">Platform</label><select id="platform"></select></div>
+          <div><label for="trollDir">Troll direction</label><select id="trollDir"></select></div>
+        </div>
+        <div class="grid cols-3">
+          <div><label for="waterDepth">Water depth (ft)</label><input id="waterDepth" type="number" inputmode="numeric" /></div>
+          <div class="cond cond-rigger hide"><label for="ballDepth">Ball depth (ft)</label><input id="ballDepth" type="number" inputmode="numeric" /></div>
+          <div class="cond cond-rigger hide"><label for="ballWeight">Rigger ball weight (lb)</label><input id="ballWeight" type="number" inputmode="decimal" /></div>
+          <div class="cond cond-dipsy hide"><label for="dipsySize">Dipsy size</label><input id="dipsySize" placeholder="#0/#1/#2/#3" /></div>
+          <div class="cond cond-dipsy hide"><label for="dipsySetting">Dipsy setting</label><input id="dipsySetting" placeholder="e.g., 1.5" /></div>
+          <div class="cond cond-copper hide"><label for="copperLen">Copper length (ft)</label><input id="copperLen" type="number" inputmode="numeric" /></div>
+          <div class="cond cond-leadcore hide"><label for="leadcoreColors">Leadcore (colors)</label><input id="leadcoreColors" placeholder="e.g., 5c/7c" /></div>
+          <div><label for="targetDepth">Target depth (ft)</label><input id="targetDepth" type="number" inputmode="numeric" /></div>
+          <div><label for="lineOut">Line out (ft)</label><input id="lineOut" type="number" inputmode="numeric" /></div>
+        </div>
+        <div class="grid cols-3">
+          <div><label for="lineType">Line type</label><select id="lineType"></select></div>
+          <div><label for="lineStrength">Line strength (lb)</label><input id="lineStrength" type="number" inputmode="numeric" /></div>
+          <div><label for="leaderLen">Leader length (ft)</label><input id="leaderLen" type="number" inputmode="numeric" /></div>
+        </div>
+        <div class="grid cols-3">
+          <div><label for="lureType">Lure type</label><select id="lureType"></select></div>
+          <div><label for="lureBrand">Brand / model</label><input id="lureBrand" placeholder="e.g., Moonshine RV, J-plug" /></div>
+          <div><label for="lureSize">Size</label><input id="lureSize" placeholder="e.g., mag, standard, 4" /></div>
+          <div><label for="lureColor">Color / pattern</label><input id="lureColor" placeholder="e.g., NBK, UV blue/green, glow" /></div>
+          <div><label for="attractor">Attractor / flasher</label><input id="attractor" placeholder="e.g., 8&quot; white crush" /></div>
+          <div><label for="flyMeat">Fly / meat color</label><input id="flyMeat" placeholder="e.g., blue fly, green meat" /></div>
+        </div>
+        <div class="grid cols-3">
+          <div><label for="speedBall">Speed @ ball (mph)</label><input id="speedBall" type="number" inputmode="decimal" /></div>
+          <div><label for="sog">SOG (mph)</label><input id="sog" type="number" inputmode="decimal" /></div>
+          <div><label for="strikeDepthSeen">Strike depth seen (ft)</label><input id="strikeDepthSeen" type="number" inputmode="numeric" /></div>
+        </div>
+        <div class="grid cols-3">
+          <div><label for="species">Species</label><select id="species"></select></div>
+          <div><label for="lengthIn">Length (in)</label><input id="lengthIn" type="number" inputmode="decimal" /></div>
+          <div><label for="weightLb">Weight (lb)</label><input id="weightLb" type="number" inputmode="decimal" /></div>
+          <div><label for="keptRel">Kept / Released</label><select id="keptRel"><option value="">—</option><option>Kept</option><option>Released</option></select></div>
+          <div><label for="landedYN">Landed</label><select id="landedYN"><option value="">—</option><option>Y</option><option>N</option></select></div>
+          <div><label for="hookLoc">Hook location</label><select id="hookLoc"></select></div>
+        </div>
+        <div class="grid cols-2">
+          <div>
+            <label for="gps">GPS (lat, lon)</label>
+            <input id="gps" placeholder="e.g., 42.10, -86.50" />
+            <div class="row">
+              <button class="btn secondary" id="getGps">Get location</button>
+              <button class="btn secondary" id="nowBtn">Now</button>
+            </div>
+            <div class="hint">Note: Geolocation may require HTTPS and user permission. If blocked, enter manually.</div>
+          </div>
+          <div><label for="notes">Notes</label><textarea id="notes" placeholder="Strike details, direction change, color tweaks, etc."></textarea></div>
+        </div>
+        <div class="card" style="background:#0f1723; border-style:dashed;">
+          <div class="section-title">Photo (fish or lure)</div>
+          <input id="photoInput" type="file" accept="image/*" capture="environment" />
+          <div class="hint">Tip: On iPhone/Android this opens the camera. We compress before saving to keep storage light.</div>
+          <div class="thumb-row">
+            <img id="photoPreview" class="thumb hide" alt="preview"/>
+            <button class="btn secondary" id="clearPhoto" type="button">Remove photo</button>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn good" id="addEntry">Save entry</button>
+          <button class="btn secondary" id="resetForm">Reset form</button>
+          <button class="btn secondary" id="dupLast" type="button">Duplicate last</button>
+          <button class="btn secondary" id="cancelEdit" type="button" style="display:none">Cancel edit</button>
+          <button class="btn warn" id="forceSave" type="button" style="display:none">Force save</button>
+          <button class="btn secondary" id="quickToggle" type="button" title="Toggle Quick Log mode">Quick Mode: Off</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title">Session entries</div>
+        <div style="overflow:auto; max-height: 45vh;">
+          <table id="entriesTable">
+            <thead>
+              <tr><th>Time</th><th>Platf.</th><th>Photo</th><th>Lure</th><th>Depths</th><th>Dir/Speed</th><th>Species</th><th>WL</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section id="tab-review" class="grid hide">
+      <div class="card">
+        <div class="section-title">Trip summary</div>
+        <div id="summary" class="muted">(Fill in Trip Setup and add entries to see a summary.)</div>
+      </div>
+      <div class="card">
+        <div class="section-title">Analytics</div>
+        <div id="analytics" class="muted">(Data appears after entries.)</div>
+      </div>
+      <div class="card">
+        <div class="section-title">Export / backup</div>
+        <div class="grid cols-2">
+          <button class="btn" id="exportCsv">Export catches (CSV)</button>
+          <button class="btn secondary" id="exportJson">Export all (JSON, incl. photos)</button>
+          <button class="btn" id="exportAlbum">Export album (HTML)</button>
+          <button class="btn warn" id="importJsonBtn">Import JSON</button>
+          <input id="importJson" class="hide" type="file" accept="application/json" />
+        </div>
+        <div class="hint">Note: CSV can’t embed images in Google Sheets. Use the Album HTML or JSON if you want the photos included.</div>
+      </div>
+      <div class="card">
+        <div class="section-title">Manage data</div>
+        <div class="grid cols-2">
+          <button class="btn danger" id="clearTrip">Clear current trip</button>
+          <button class="btn danger" id="clearAll">Clear ALL trips</button>
+          <button class="btn danger" id="deleteTrip" style="grid-column:span 2">Delete trip</button>
+        </div>
+        <div class="hint">Clearing is permanent on this device. Export first if you want a backup.</div>
+      </div>
+    </section>
+    <section id="tab-settings" class="grid hide">
+      <div class="card">
+        <div class="section-title">Lists</div>
+        <div class="grid cols-2">
+          <div><label for="listPlatform">Platform options (one per line)</label><textarea id="listPlatform"></textarea></div>
+          <div><label for="listLineType">Line types</label><textarea id="listLineType"></textarea></div>
+          <div><label for="listLureType">Lure types</label><textarea id="listLureType"></textarea></div>
+          <div><label for="listSpecies">Species</label><textarea id="listSpecies"></textarea></div>
+          <div><label for="listTrollDir">Troll directions</label><textarea id="listTrollDir"></textarea></div>
+          <div><label for="listClouds">Cloud cover</label><textarea id="listClouds"></textarea></div>
+          <div><label for="listHookLoc">Hook locations</label><textarea id="listHookLoc"></textarea></div>
+        </div>
+        <div class="row">
+          <button class="btn good" id="saveLists">Save lists</button>
+          <button class="btn secondary" id="restoreDefaults">Restore defaults</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title">About</div>
+        <div class="muted">All data is stored locally on this device. Text data uses <b>localStorage</b>; photos use <b>IndexedDB</b> to avoid size limits. Export CSV/JSON/Album after each trip to back up.</div>
+      </div>
+      <div class="card">
+        <div class="section-title">Preferences</div>
+        <div class="prefs-row">
+          <label class="switch"><input type="checkbox" id="prefQuickDefault"/> Quick mode by default</label>
+          <label class="switch"><input type="checkbox" id="prefSticky" checked/> Sticky lure fields</label>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn good" id="savePrefs" type="button">Save preferences</button>
+        </div>
+        <div class="hint">Sticky keeps lure fields after saving. Quick mode hides advanced fields for speed.</div>
+      </div>
+    </section>
+  </main>
+  <div class="footer">© You. Fish hard, log smart.</div>
+  <div id="lightbox" class="lightbox hide" role="dialog" aria-modal="true">
+    <img id="lightboxImg" alt="photo" />
+    <button class="btn secondary close" id="lightboxClose">Close</button>
+  </div>
+  <div id="toast"></div>
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+    const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const LS_KEY = 'blfl.state.v2';
+    let state = load() || { trips: {}, lists: defaults(), dataVersion:3, settings:{quickMode:false, sticky:true} };
+    function defaults(){ return { Platform:["Downrigger","Dipsy","Copper","Leadcore","Planer","Flatline"], LineType:["Wire","Braid","Mono","Fluorocarbon","Copper","Leadcore"], LureType:["Spoon","Plug","Flasher/Fly","Meat Rig","Spin-n-Glow","Other"], Species:["Chinook (King)","Coho","Steelhead","Lake Trout","Brown Trout","Other"], TrollDirection:["N","NE","E","SE","S","SW","W","NW"], Clouds:["Clear","Partly","Overcast","Fog"], HookLocation:["Jaw","Corner","Tongue","Outside"] }; }
+  function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+    function load(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)); }catch(e){ return null; } }
+    const DB_NAME='blfl-db', DB_VER=1;
+    function openDB(){ return new Promise((resolve,reject)=>{ const req=indexedDB.open(DB_NAME,DB_VER); req.onupgradeneeded=()=>{ const db=req.result; if(!db.objectStoreNames.contains('photos')) db.createObjectStore('photos',{keyPath:'id'}); }; req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); }
+    async function savePhoto(entryId, dataURL){ const db=await openDB(); await new Promise((res,rej)=>{ const tx=db.transaction('photos','readwrite'); tx.objectStore('photos').put({id:entryId, dataURL, ts:Date.now()}); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
+    async function getPhoto(entryId){ const db=await openDB(); return await new Promise((res,rej)=>{ const tx=db.transaction('photos','readonly'); const req=tx.objectStore('photos').get(entryId); req.onsuccess=()=>res(req.result?.dataURL||''); req.onerror=()=>rej(req.error); }); }
+    async function deletePhoto(entryId){ const db=await openDB(); await new Promise((res,rej)=>{ const tx=db.transaction('photos','readwrite'); tx.objectStore('photos').delete(entryId); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
+  $$('.tab-btn').forEach(btn=>{ btn.addEventListener('click', ()=>{ $$('.tab-btn').forEach(b=>b.classList.toggle('active', b===btn)); const tab=btn.dataset.tab; $$('main section').forEach(sec=>sec.classList.add('hide')); $('#tab-'+tab).classList.remove('hide'); if(tab==='review'){ renderSummary(); renderAnalytics(); } }); });
+    function fillSelect(id, arr){ const el=$(id); el.innerHTML = '<option value="">—</option>' + arr.map(v=>`<option>${v}</option>`).join(''); }
+    function fillAllSelects(){ fillSelect('#platform', state.lists.Platform); fillSelect('#lineType', state.lists.LineType); fillSelect('#lureType', state.lists.LureType); fillSelect('#species', state.lists.Species); fillSelect('#trollDir', state.lists.TrollDirection); fillSelect('#clouds', state.lists.Clouds); fillSelect('#hookLoc', state.lists.HookLocation); }
+    function listsToTextarea(){ $('#listPlatform').value = state.lists.Platform.join('\n'); $('#listLineType').value = state.lists.LineType.join('\n'); $('#listLureType').value = state.lists.LureType.join('\n'); $('#listSpecies').value = state.lists.Species.join('\n'); $('#listTrollDir').value = state.lists.TrollDirection.join('\n'); $('#listClouds').value = state.lists.Clouds.join('\n'); $('#listHookLoc').value = state.lists.HookLocation.join('\n'); }
+    function textareaToLists(){ const split=t=>t.split('\n').map(s=>s.trim()).filter(Boolean); state.lists.Platform=split($('#listPlatform').value); state.lists.LineType=split($('#listLineType').value); state.lists.LureType=split($('#listLureType').value); state.lists.Species=split($('#listSpecies').value); state.lists.TrollDirection=split($('#listTrollDir').value); state.lists.Clouds=split($('#listClouds').value); state.lists.HookLocation=split($('#listHookLoc').value); save(); fillAllSelects(); }
+    $('#saveLists').addEventListener('click', textareaToLists); $('#restoreDefaults').addEventListener('click', ()=>{ state.lists=defaults(); save(); fillAllSelects(); listsToTextarea(); alert('Defaults restored'); });
+    function currentTripId(){ return $('#tripSelect').value || null; }
+  function ensureTrip(){ let id=currentTripId(); if(!id){ id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; $('#tripSelect').value=id; save(); refreshTripSelect(); } return id; }
+    function refreshTripSelect(){ const sel=$('#tripSelect'); const opts=Object.values(state.trips).sort((a,b)=>(b.header?.date||'').localeCompare(a.header?.date||'')); sel.innerHTML = opts.map(t=>`<option value="${t.id}">${t.header?.date||'(no date)'} • ${t.header?.port||'Port'}</option>`).join(''); }
+  function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, thermocline:$('#thermocline').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value }; state.trips[id].updatedAt=Date.now(); save(); refreshTripSelect(); $('#tripSelect').value=id; alert('Trip header saved.'); }
+  $('#saveTrip').addEventListener('click', saveHeader); $('#newTrip').addEventListener('click', ()=>{ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; alert('New trip created. Fill in header then log catches.'); }); $('#tripSelect').addEventListener('change', ()=>{ renderSummary(); renderAnalytics(); renderEntries(); loadHeaderIntoForm(); updateLogBadge(); });
+    function loadHeaderIntoForm(){ const t=state.trips[currentTripId()]; if(!t) return; const h=t.header||{}; $('#tripDate').value=h.date||''; $('#startTime').value=h.startTime||''; $('#port').value=h.port||''; $('#boat').value=h.boat||''; $('#crew').value=h.crew||''; $('#hours').value=h.hours||''; $('#airTemp').value=h.airTemp||''; $('#surfaceTemp').value=h.surfaceTemp||''; $('#thermocline').value=h.thermocline||''; $('#wind').value=h.wind||''; $('#waves').value=h.waves||''; $('#clouds').value=h.clouds||''; }
+    $('#platform').addEventListener('change', ()=>{ const p=$('#platform').value.toLowerCase(); $$('.cond').forEach(x=>x.classList.add('hide')); if(p==='downrigger'){ $$('.cond-rigger').forEach(x=>x.classList.remove('hide')); } if(p==='dipsy'){ $$('.cond-dipsy').forEach(x=>x.classList.remove('hide')); } if(p==='copper'){ $$('.cond-copper').forEach(x=>x.classList.remove('hide')); } if(p==='leadcore'){ $$('.cond-leadcore').forEach(x=>x.classList.remove('hide')); } });
+    function setNow(){ const d=new Date(); $('#time').value=d.toTimeString().slice(0,5); if(!$('#tripDate').value) $('#tripDate').value=d.toISOString().slice(0,10); if(!$('#startTime').value) $('#startTime').value=d.toTimeString().slice(0,5); }
+    $('#nowBtn').addEventListener('click', setNow); setNow();
+    $('#getGps').addEventListener('click', ()=>{ if(!('geolocation' in navigator)) return alert('Geolocation not supported on this device/browser.'); navigator.geolocation.getCurrentPosition(pos=>{ const {latitude,longitude}=pos.coords; $('#gps').value=`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`; }, err=>{ alert('Location error: '+err.message+'\nTip: Ensure site permissions and HTTPS.'); }, {enableHighAccuracy:true, timeout:8000, maximumAge:10000}); });
+    const photoInput = $('#photoInput'); const photoPreview = $('#photoPreview'); const clearPhotoBtn = $('#clearPhoto'); let pendingPhotoDataURL='';
+    function fileToDataURLResized(file, maxDim=1600, quality=0.82){ return new Promise((resolve,reject)=>{ const fr=new FileReader(); fr.onload=()=>{ const img=new Image(); img.onload=()=>{ const c=document.createElement('canvas'); let w=img.width,h=img.height; const scale=Math.min(1, maxDim/Math.max(w,h)); const nw=Math.max(1,Math.round(w*scale)), nh=Math.max(1,Math.round(h*scale)); c.width=nw; c.height=nh; c.getContext('2d').drawImage(img,0,0,nw,nh); try{ resolve(c.toDataURL('image/jpeg', quality)); }catch(e){ reject(e); } }; img.onerror=reject; img.src=fr.result; }; fr.onerror=reject; fr.readAsDataURL(file); }); }
+    photoInput.addEventListener('change', async ()=>{ const f=photoInput.files?.[0]; if(!f){ pendingPhotoDataURL=''; photoPreview.classList.add('hide'); photoPreview.src=''; return; } try{ pendingPhotoDataURL=await fileToDataURLResized(f); photoPreview.src=pendingPhotoDataURL; photoPreview.classList.remove('hide'); }catch(err){ alert('Photo error: '+err.message); } });
+    clearPhotoBtn.addEventListener('click', ()=>{ pendingPhotoDataURL=''; photoInput.value=''; photoPreview.classList.add('hide'); photoPreview.src=''; });
+    function readVal(id){ return (document.querySelector(id)?.value||'').trim(); } function num(x){ return x?Number(x):''; }
+    function computeTs(header, timeStr){ if(header?.date && timeStr){ const ds=header.date+'T'+timeStr+':00'; const d=new Date(ds); if(!isNaN(d)) return d.getTime(); } return Date.now(); }
+    let editingEntryId=null; let undoTimer=null; let pendingDelete=null; const UNDO_MS=12000;
+    function setEditing(on){ editingEntryId = on?editingEntryId:null; $('#cancelEdit').style.display = on?'inline-block':'none'; $('#addEntry').textContent = on?'Update entry':'Save entry'; }
+    function validateEntry(isQuick){ const req=[]; const time=readVal('#time'); const platform=readVal('#platform'); const species=readVal('#species'); const lureType=readVal('#lureType'); const water=readVal('#waterDepth'); const target=readVal('#targetDepth'); if(!time) req.push('#time'); if(!platform) req.push('#platform'); if(!species) req.push('#species'); if(!lureType) req.push('#lureType'); if(!water && !target) { req.push('#waterDepth'); req.push('#targetDepth'); }
+      $$('#tab-log input, #tab-log select').forEach(el=> el.classList.remove('invalid')); req.forEach(sel=>{ const el=$(sel); if(el) el.classList.add('invalid'); }); return { ok: req.length===0, missing:req };
+    }
+    async function addOrUpdateEntry(force=false){ const t=state.trips[ensureTrip()]; const header=t.header; const quick=state.settings.quickMode; const v=validateEntry(quick); if(!v.ok && !force){ $('#forceSave').style.display='inline-block'; toast('Missing required fields. Fill red or tap Force.'); return; } $('#forceSave').style.display='none'; const base={ id: editingEntryId||uid(), time:readVal('#time'), platform:readVal('#platform'), trollDir:readVal('#trollDir'), waterDepth:num(readVal('#waterDepth')), ballDepth:num(readVal('#ballDepth')), ballWeight:num(readVal('#ballWeight')), dipsySize:readVal('#dipsySize'), dipsySetting:readVal('#dipsySetting'), copperLen:num(readVal('#copperLen')), leadcoreColors:readVal('#leadcoreColors'), targetDepth:num(readVal('#targetDepth')), lineOut:num(readVal('#lineOut')), lineType:readVal('#lineType'), lineStrength:num(readVal('#lineStrength')), leaderLen:num(readVal('#leaderLen')), lureType:readVal('#lureType'), lureBrand:readVal('#lureBrand'), lureSize:readVal('#lureSize'), lureColor:readVal('#lureColor'), attractor:readVal('#attractor'), flyMeat:readVal('#flyMeat'), speedBall:num(readVal('#speedBall')), sog:num(readVal('#sog')), strikeDepthSeen:num(readVal('#strikeDepthSeen')), species:readVal('#species'), lengthIn:num(readVal('#lengthIn')), weightLb:num(readVal('#weightLb')), keptRel:readVal('#keptRel')||'Kept', landed:readVal('#landedYN'), hookLoc:readVal('#hookLoc'), gps:readVal('#gps'), notes:readVal('#notes'), photo:false };
+      if(!base.keptRel) base.keptRel='Kept'; if(!base.time) setNow(); base.ts = computeTs(header, base.time); if(pendingPhotoDataURL){ try{ await savePhoto(base.id, pendingPhotoDataURL); base.photo=true; }catch(e){ alert('Could not save photo: '+e.message); } }
+      if(editingEntryId){ const idx=t.entries.findIndex(e=>e.id===editingEntryId); if(idx>-1){ const existingPhoto=t.entries[idx].photo; if(existingPhoto && !base.photo) base.photo=true; t.entries[idx]=Object.assign({}, t.entries[idx], base); toast('Entry updated'); }
+      } else { t.entries.push(base); if(state.settings.sticky){ // keep lure fields
+          ['lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','lineType','lineStrength'].forEach(id=>{/*sticky implies leave value*/});
+        } else { /* will clear below */ }
+      }
+      t.updatedAt=Date.now(); save(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); if(editingEntryId){ setEditing(false); clearCatchForm(false); } else { clearCatchForm(!state.settings.sticky); }
+    }
+    $('#addEntry').addEventListener('click', ()=> addOrUpdateEntry(false));
+    $('#forceSave').addEventListener('click', ()=> addOrUpdateEntry(true));
+    $('#cancelEdit').addEventListener('click', ()=>{ setEditing(false); clearCatchForm(false); });
+    $('#dupLast').addEventListener('click', ()=>{ const t=state.trips[currentTripId()]; if(!t||!t.entries.length) return toast('No previous entry'); const last=t.entries[t.entries.length-1]; loadEntryIntoForm(last, true); editingEntryId=null; setNow(); setEditing(false); });
+  function clearCatchForm(clearSticky){ $$('#tab-log input, #tab-log textarea, #tab-log select').forEach(el=>{ if(['time'].includes(el.id)) { setNow(); return; } if(!clearSticky && ['lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','lineType','lineStrength'].includes(el.id)) return; if(['platform','trollDir','species','keptRel','landedYN','hookLoc','waterDepth','targetDepth'].includes(el.id)) { el.value=''; } else if(el.tagName==='TEXTAREA' || el.tagName==='INPUT' || el.tagName==='SELECT'){ el.value=''; } }); $('#keptRel').value='Kept'; $$('.cond').forEach(x=>x.classList.add('hide')); pendingPhotoDataURL=''; photoInput.value=''; photoPreview.classList.add('hide'); photoPreview.src=''; }
+    $('#resetForm').addEventListener('click', clearCatchForm);
+  async function renderEntries(){ const t=state.trips[currentTripId()]; const tbody=$('#entriesTable tbody'); if(!t){ tbody.innerHTML=''; return; } const rows=await Promise.all(t.entries.map(async e=>{ const lure=[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '); const depths=[`W:${e.waterDepth||'-'}`,`T:${e.targetDepth||'-'}`,(e.platform==='Downrigger'?`B:${e.ballDepth||'-'}`:'')].filter(Boolean).join(' / '); const dirSpd=[e.trollDir, e.speedBall?`${e.speedBall} mph`:''].filter(Boolean).join(' • '); const wl=[e.landed||'-', e.keptRel||'-'].join('/'); let photoCell=''; if(e.photo){ const durl=await getPhoto(e.id); photoCell = durl ? `<img src="${durl}" class="thumb" alt="thumb" data-view="${e.id}"/>` : '📷'; } else { photoCell=''; } return `<tr><td>${e.time||''}</td><td><span class="pill badge">${e.platform||''}</span></td><td>${photoCell}</td><td>${lure}</td><td>${depths}</td><td>${dirSpd}</td><td>${e.species||''}</td><td>${wl}</td><td style="text-align:right;white-space:nowrap"><button class="btn secondary" data-edit="${e.id}">Edit</button> <button class="btn secondary" data-viewbtn="${e.id}">View</button> <button class="btn secondary" data-del="${e.id}">Delete</button></td></tr>`; })); tbody.innerHTML = rows.join(''); $$('button[data-del]').forEach(b=> b.onclick = ()=>{ delEntry(b.dataset.del); }); $$('button[data-viewbtn]').forEach(b=> b.onclick = ()=>{ openLightbox(b.dataset.viewbtn); }); $$('button[data-edit]').forEach(b=> b.onclick = ()=>{ startEdit(b.dataset.edit); }); $$('img[data-view]').forEach(img=> img.onclick = ()=>{ openLightbox(img.dataset.view); }); }
+  function loadEntryIntoForm(e, duplicate=false){ ['time','platform','trollDir','waterDepth','ballDepth','ballWeight','dipsySize','dipsySetting','copperLen','leadcoreColors','targetDepth','lineOut','lineType','lineStrength','leaderLen','lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','speedBall','sog','strikeDepthSeen','species','lengthIn','weightLb','keptRel','landedYN','hookLoc','gps','notes'].forEach(id=>{ const el=$('#'+id); if(el && e[id.replace('landedYN','landed')]) el.value = e[id.replace('landedYN','landed')] ?? ''; }); if(e.platform) $('#platform').dispatchEvent(new Event('change')); if(!duplicate){ editingEntryId=e.id; setEditing(true); pendingPhotoDataURL=''; photoPreview.classList.add('hide'); photoPreview.src=''; } }
+  function startEdit(id){ const t=state.trips[currentTripId()]; if(!t) return; const e=t.entries.find(x=>x.id===id); if(!e) return; loadEntryIntoForm(e,false); toast('Editing entry'); }
+  async function delEntry(id){ const t=state.trips[currentTripId()]; if(!t) return; const e=t.entries.find(x=>x.id===id); if(!e) return; const photoData = e.photo ? await getPhoto(e.id) : null; t.entries = t.entries.filter(x=>x.id!==id); save(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); scheduleUndo({ entry:e, photo:photoData }); }
+  function scheduleUndo(payload){ pendingDelete=payload; showUndo(); if(undoTimer) clearTimeout(undoTimer); undoTimer=setTimeout(()=>{ finalizeDelete(); }, UNDO_MS); }
+  function finalizeDelete(){ if(!pendingDelete) return; if(pendingDelete.entry.photo){ deletePhoto(pendingDelete.entry.id).catch(()=>{}); } pendingDelete=null; hideToast(); }
+  function undoDelete(){ if(!pendingDelete) return; const t=state.trips[currentTripId()]; if(!t){ pendingDelete=null; return; } t.entries.push(pendingDelete.entry); save(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); pendingDelete=null; hideToast(); toast('Restored'); }
+    async function openLightbox(entryId){ const durl = await getPhoto(entryId); if(!durl){ alert('No photo for this entry.'); return; } $('#lightboxImg').src=durl; $('#lightbox').classList.remove('hide'); }
+    $('#lightboxClose').onclick = ()=> $('#lightbox').classList.add('hide'); $('#lightbox').onclick = (e)=>{ if(e.target.id==='lightbox') $('#lightbox').classList.add('hide'); };
+    function renderSummary(){ const t=state.trips[currentTripId()]; const box=$('#summary'); if(!t||!t.entries.length){ box.innerHTML='<span class="muted">No entries yet.</span>'; return; } const h=t.header||{}; const n=t.entries.length; const landed=t.entries.filter(e=>e.landed==='Y').length; const kept=t.entries.filter(e=>e.keptRel==='Kept').length; const bestWaterDepth=mode(t.entries.map(e=>e.waterDepth).filter(Number.isFinite)); const bestTargetDepth=mode(t.entries.map(e=>e.targetDepth).filter(Number.isFinite)); const bestLureType=mode(t.entries.map(e=>e.lureType).filter(Boolean)); const bestColor=mode(t.entries.map(e=>e.lureColor).filter(Boolean)); const bestDir=mode(t.entries.map(e=>e.trollDir).filter(Boolean)); const lengths=t.entries.map(e=>e.lengthIn).filter(Number.isFinite); const weights=t.entries.map(e=>e.weightLb).filter(Number.isFinite); const avg=(arr)=> (arr.length? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1):''); const chips=[`Date: <b>${h.date||'-'}</b>`,`Port: <b>${h.port||'-'}</b>`,`Crew: <b>${h.crew||'-'}</b>`,`Entries: <b>${n}</b>`,`Landed: <b>${landed}</b>`,`Kept: <b>${kept}</b>`,`Best water depth: <b>${bestWaterDepth||'-'}</b>`,`Best target depth: <b>${bestTargetDepth||'-'}</b>`,`Best direction: <b>${bestDir||'-'}</b>`,`Best lure: <b>${bestLureType||'-'}</b>`,`Best color: <b>${bestColor||'-'}</b>`]; if(lengths.length>=2) chips.push(`Avg length: <b>${avg(lengths)} in</b>`); if(weights.length>=2) chips.push(`Avg weight: <b>${avg(weights)} lb</b>`); box.innerHTML='<div class="grid cols-3">'+chips.map(c=>`<div class="chip">${c}</div>`).join('')+'</div>'; }
+    function updateLogBadge(){ const t=state.trips[currentTripId()]; const badge=$('#logCountBadge'); if(!badge) return; const n=t?.entries.length||0; if(n){ badge.style.display='inline-block'; badge.textContent=n; } else { badge.style.display='none'; } }
+    function renderAnalytics(){ const t=state.trips[currentTripId()]; const box=$('#analytics'); if(!box) return; if(!t||!t.entries.length){ box.innerHTML='(No data)'; return; } const entries=t.entries.slice(); const countBy=(k)=>{ const m={}; entries.forEach(e=>{ const v=e[k]; if(!v) return; m[v]=(m[v]||0)+1; }); return Object.entries(m).sort((a,b)=>b[1]-a[1]); }; const top=(arr,n=3)=>arr.slice(0,n).map(([k,v])=>`${k} (${v})`).join(', '); const platforms=countBy('platform'); const species=countBy('species'); const lureTypes=countBy('lureType'); const colors=countBy('lureColor'); // depth buckets 10 ft
+      function bucket(arr){ const m={}; arr.filter(Number.isFinite).forEach(v=>{ const b=Math.floor(v/10)*10; const label=`${b}-${b+9}`; m[label]=(m[label]||0)+1; }); return Object.entries(m).sort((a,b)=>{ const na=parseInt(a[0]); const nb=parseInt(b[0]); return na-nb; }); }
+      const wdBuckets=bucket(entries.map(e=>e.waterDepth)); const tdBuckets=bucket(entries.map(e=>e.targetDepth)); // timeline 15 min
+      const timeline=(()=>{ const pts=entries.filter(e=>e.ts); if(!pts.length) return []; const min=Math.min(...pts.map(e=>e.ts)); const max=Math.max(...pts.map(e=>e.ts)); const span=15*60*1000; const buckets=[]; for(let tms=Math.floor(min/span)*span; tms<=max; tms+=span){ buckets.push({ t:tms, c:0 }); } pts.forEach(e=>{ const idx=Math.floor((e.ts - buckets[0].t)/span); if(buckets[idx]) buckets[idx].c++; }); return buckets; })();
+      const spark=timeline.map(b=>`<div class="spark" style="width:6px;height:${4+Math.min(30,b.c*6)}px" title="${new Date(b.t).toTimeString().slice(0,5)}: ${b.c}"></div>`).join('');
+      const fmtList=(list)=> list.map(([k,v])=>`${k}: <b>${v}</b>`).join(' • ');
+      box.innerHTML=`<h4>Platforms</h4>${fmtList(platforms)||'-'}<h4>Species</h4>${fmtList(species)||'-'}<h4>Lure Types (Top)</h4>${top(lureTypes)||'-'}<h4>Colors (Top)</h4>${top(colors)||'-'}<h4>Water Depth (10s)</h4>${wdBuckets.map(([k,v])=>`${k}: <b>${v}</b>`).join(' • ')||'-'}<h4>Target Depth (10s)</h4>${tdBuckets.map(([k,v])=>`${k}: <b>${v}</b>`).join(' • ')||'-'}<h4>Timeline 15m</h4><div style="display:flex;align-items:flex-end;height:50px;">${spark}</div>`;
+    }
+    function mode(arr){ if(!arr.length) return ''; const map=new Map(); arr.forEach(v=>map.set(v,(map.get(v)||0)+1)); let m='',c=0; map.forEach((n,k)=>{ if(n>c){c=n;m=k;} }); return m; }
+    function toCsvRow(fields){ return fields.map(v=>{ if(v===null||v===undefined) v=''; v=String(v); if(/[",\n]/.test(v)) v='"'+v.replace(/"/g,'""')+'"'; return v; }).join(','); }
+  async function exportCsv(){ const t=state.trips[currentTripId()]; if(!t) return alert('No trip.'); const h=['TripDate','Time','Timestamp','PortArea','GPS_Lat','GPS_Lon','Waypoint','WaterDepth_ft','SurfaceTemp_F','ThermoclineDepth_ft','Platform','RodPosition','LineType','LineStrength_lb','LineLengthOut_ft','DipsySize','DipsySetting','RiggerBallWeight_lb','RiggerBallDepth_ft','TargetDepth_ft','StrikeDepthSeen_ft','SpeedAtBall_mph','SOG_mph','TrollDirection','LureType','LureBrand','LureModel','LureSize','LureColor','LeaderLength_ft','Attractor/Flasher','Fly/MeatColor','Species','Length_in','Weight_lb','KeptOrReleased','HookLocation','Landed_YN','FightTime_min','Notes','HasPhoto']; const lines=[toCsvRow(h)]; const hdr=t.header||{}; for(const e of t.entries){ const [lat,lon]=(e.gps||'').split(',').map(s=>s?.trim()); const row=[ hdr.date||'', e.time||'', e.ts||'', hdr.port||'', lat||'', lon||'', '', e.waterDepth||'', hdr.surfaceTemp||'', hdr.thermocline||'', e.platform||'', '', e.lineType||'', e.lineStrength||'', e.lineOut||'', e.dipsySize||'', e.dipsySetting||'', e.ballWeight||'', e.ballDepth||'', e.targetDepth||'', e.strikeDepthSeen||'', e.speedBall||'', e.sog||'', e.trollDir||'', e.lureType||'', e.lureBrand||'', '', e.lureSize||'', e.lureColor||'', e.leaderLen||'', e.attractor||'', e.flyMeat||'', e.species||'', e.lengthIn||'', e.weightLb||'', e.keptRel||'', e.hookLoc||'', e.landed||'', '', e.notes||'', e.photo?'Y':'N' ]; lines.push(toCsvRow(row)); } download('catches_'+(hdr.date||'trip')+'.csv', lines.join('\n')); }
+    async function exportJson(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos={}; for(const e of t.entries){ if(e.photo){ photos[e.id]=await getPhoto(e.id); } } const out={...t, photos, exportVersion:2}; download('trip_'+(t.header?.date||id)+'.json', JSON.stringify(out,null,2)); }
+    async function exportAlbum(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos=[]; for(const e of t.entries){ if(e.photo){ photos.push({id:e.id, time:e.time, species:e.species, lure:[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '), durl: await getPhoto(e.id)}); } } const html='<!doctype html><meta charset="utf-8"><title>Album '+(t.header?.date||'trip')+'</title><style>body{font-family:system-ui;background:#0e131b;color:#e8eefb;margin:0;padding:16px}h1{font-size:20px} .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} figure{margin:0;background:#151b26;border:1px solid #243349;border-radius:12px;overflow:hidden} img{width:100%;height:200px;object-fit:cover;display:block} figcaption{padding:8px 10px;font-size:12px;color:#b9c9e3} </style><h1>Trip '+(t.header?.date||'')+'</h1><div class="g">'+photos.map(p=>'<figure><img src="'+p.durl+'"><figcaption>'+ (p.time||'') +' • '+ (p.species||'') +'<br>'+ (p.lure||'') +'</figcaption></figure>').join('')+'</div>'; download('album_'+(t.header?.date||id)+'.html', html); }
+    function download(name, content){ const blob=new Blob([content], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+    $('#exportCsv').onclick=exportCsv; $('#exportJson').onclick=exportJson; $('#exportAlbum').onclick=exportAlbum; $('#importJsonBtn').onclick=()=>$('#importJson').click();
+    $('#importJson').onchange=(e)=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=async ()=>{ try{ const data=JSON.parse(r.result); if(!data.id) data.id=uid(); state.trips[data.id]={id:data.id, header:data.header||{}, entries:data.entries||[]}; if(data.photos){ for(const [eid,durl] of Object.entries(data.photos)){ try{ await savePhoto(eid,durl);}catch{} } } save(); refreshTripSelect(); $('#tripSelect').value=data.id; renderEntries(); renderSummary(); loadHeaderIntoForm(); alert('Trip imported.'); }catch(err){ alert('Import failed: '+err.message); } }; r.readAsText(f); };
+  $('#clearTrip').onclick=async ()=>{ const id=currentTripId(); if(!id) return; if(confirm('Delete ALL entries for current trip?')){ const t=state.trips[id]; // cleanup photos
+    for(const e of t.entries){ if(e.photo){ try{ await deletePhoto(e.id);}catch{} } }
+    t.entries=[]; save(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); }
+  };
+  $('#deleteTrip').onclick=async ()=>{ const id=currentTripId(); if(!id) return; const txt=prompt('Type DELETE to permanently remove this trip (cannot be undone).'); if(txt!=='DELETE') return; const t=state.trips[id]; if(t){ for(const e of t.entries){ if(e.photo){ try{ await deletePhoto(e.id);}catch{} } } delete state.trips[id]; save(); refreshTripSelect(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); }
+  };
+  $('#clearAll').onclick=async ()=>{ if(confirm('Delete ALL trips from this device? This cannot be undone.')){ // cleanup all photos by iterating entries
+    for(const trip of Object.values(state.trips)){ for(const e of trip.entries){ if(e.photo){ try{ await deletePhoto(e.id);}catch{} } } }
+    state.trips={}; save(); refreshTripSelect(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); } };
+    $('#addToHome').onclick=()=>{ alert(`Add to Home Screen:
+
+• iPhone (Safari): Share ▸ Add to Home Screen.
+• Android (Chrome): ⋮ menu ▸ Add to Home screen.
+
+This runs offline and saves to your device.`); };
+    function migrate(){ if(!state.dataVersion){ state.dataVersion=3; }
+      // Add ts to entries if missing
+      Object.values(state.trips||{}).forEach(trip=>{ (trip.entries||[]).forEach(e=>{ if(!e.ts){ const ts=computeTs(trip.header, e.time); e.ts=ts; } }); });
+      save(); }
+    function initPrefs(){ $('#prefQuickDefault').checked= !!state.settings?.quickMode; $('#prefSticky').checked = state.settings?.sticky!==false; }
+    function savePrefs(){ state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; save(); toast('Preferences saved'); applyQuickMode(); }
+    $('#savePrefs').addEventListener('click', savePrefs);
+    function applyQuickMode(){ const quick = state.settings.quickMode; $('#quickToggle').textContent = 'Quick Mode: '+(quick?'On':'Off'); const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth','keptRel','landedYN']); $$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } }); }
+    $('#quickToggle').addEventListener('click', ()=>{ state.settings.quickMode=!state.settings.quickMode; save(); applyQuickMode(); });
+    function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0);} }
+    function hideToast(){ const el=$('#toast'); el.style.display='none'; }
+    function showUndo(){ toast('Entry deleted', true); }
+    function init(){ fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); loadHeaderIntoForm(); applyQuickMode(); updateLogBadge(); }
+    $('#prefSticky').addEventListener('change', ()=>{ /* immediate reflection not needed */ });
+    $('#prefQuickDefault').addEventListener('change', ()=>{ /* just state toggle on save */ });
+    $('#keptRel').value='Kept';
+    $('#quickToggle').addEventListener('dblclick', ()=>{ // quick clear validation marks
+      $$('#tab-log .invalid').forEach(el=>el.classList.remove('invalid')); });
+    init();
+  </script>
+</body>
+</html>
