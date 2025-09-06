@@ -3,7 +3,10 @@ const PRECACHE_URLS = [
   'index.html',
   'Fishing_Log.html',
   'README.md',
-  'Link.txt'
+  'Link.txt',
+  'manifest.json',
+  'icon-192.svg',
+  'icon-512.svg'
 ];
 
 self.addEventListener('install', event => {

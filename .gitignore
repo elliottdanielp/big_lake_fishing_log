@@ -1,1 +1,16 @@
 *.png
+
+# Ignore local config with credentials
+config.js
+
+# node server
+server/node_modules/
+server/.env
+
+# Docker
+server/node_modules
+server/npm-debug.log
+
+# OS
+.DS_Store
+Thumbs.db

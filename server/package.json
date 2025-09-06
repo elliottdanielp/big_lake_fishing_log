@@ -1,0 +1,16 @@
+{
+  "name": "blfl-proxy",
+  "version": "0.1.0",
+  "description": "Small proxy to fetch and normalize NDBC station data for big_lake_fishing_log",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.4",
+    "node-fetch": "^2.6.7",
+    "cors": "^2.8.5"
+  }
+}

@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Big Lake Fishing Log</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.svg">
   <style>
     :root { --bg:#0e131b; --card:#151b26; --ink:#e8eefb; --muted:#9fb0c8; --accent:#52a7ff; --accent-2:#2ed0a2; --danger:#ff6b6b; --warning:#ffd166; --good:#06d6a0; --shadow:rgba(0,0,0,.35); --radius:18px; }
     html, body { height:100%; } body { margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,sans-serif; background:var(--bg); color:var(--ink); }
@@ -82,9 +84,10 @@
         </div>
         <div class="row" style="margin-top:10px">
           <button class="btn" id="fetchConditions" type="button">Catch Conditions (GPS)</button>
+          <button class="btn secondary" id="downloadConditions" type="button">Download</button>
         </div>
         <div style="margin-top:8px">
-          <div class="muted">Tip: Tap <b>Catch Conditions</b> before you leave to download latest conditions. Last cached: <span id="conditionsCached">—</span></div>
+          <div class="muted">Tip: Tap <b>Download</b> or <b>Catch Conditions</b> before you leave to download latest conditions. Last cached: <span id="conditionsCached">—</span></div>
         </div>
         <div class="hint">Tip: You can edit dropdown options under <b>Settings → Lists</b>.</div>
       </div>
@@ -204,6 +207,15 @@
           <button class="btn warn" id="importJsonBtn">Import JSON</button>
           <input id="importJson" class="hide" type="file" accept="application/json" />
           <button class="btn good" id="exportDrive">Export to Google Drive</button>
+          <div style="grid-column:span 2; margin-top:6px">
+            <label for="sheetId">Google Spreadsheet ID (optional)</label>
+            <input id="sheetId" placeholder="Paste your Google Sheet ID to enable Upload" />
+            <div class="row" style="margin-top:8px">
+              <button class="btn" id="uploadSheet">Upload trip → Google Sheet</button>
+              <button class="btn secondary" id="authGapi">Sign In (Google)</button>
+            </div>
+            <div class="muted" style="margin-top:6px">Tip: Create a sheet and paste its ID here. The app will append rows for the current trip. Requires enabling Sheets API and OAuth client values in the code.</div>
+          </div>
         </div>
         <div class="hint">Note: CSV can’t embed images in Google Sheets. Use the Album HTML or JSON if you want the photos included.</div>
       </div>
@@ -261,13 +273,20 @@
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.from(document.querySelectorAll(sel));
     const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
-    // --- Google Drive Export ---
+    // --- Google Drive / Sheets Export ---
     // You must set up a Google Cloud project and OAuth credentials for this to work.
-    // See https://developers.google.com/drive/api/v3/quickstart/js
-    const CLIENT_ID = '112857535143-9v0hn41g656hib0npfcgkk70avoefkf7.apps.googleusercontent.com';
-    const API_KEY = 'AIzaSyCnm5SqrBqj8CRNbkQ2iQa72H54p_N8GZo';
-    const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
-    const SCOPES = "https://www.googleapis.com/auth/drive.file";
+    // See https://developers.google.com/drive/api/v3/quickstart/js and
+    // https://developers.google.com/sheets/api/quickstart/js
+  // Allow overriding credentials from a local, uncommitted config.js to avoid
+  // checking secrets into the repo. Create `config.js` with `window.APP_CONFIG`.
+  const CLIENT_ID = (window.APP_CONFIG && window.APP_CONFIG.CLIENT_ID) || '112857535143-9v0hn41g656hib0npfcgkk70avoefkf7.apps.googleusercontent.com';
+  const API_KEY = (window.APP_CONFIG && window.APP_CONFIG.API_KEY) || 'AIzaSyCnm5SqrBqj8CRNbkQ2iQa72H54p_N8GZo';
+    const DISCOVERY_DOCS = [
+      "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
+      "https://sheets.googleapis.com/$discovery/rest?version=v4"
+    ];
+    // Request Drive file and Sheets access. Replace keys with your project's values.
+    const SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets";
 
     function loadGapiScript() {
       return new Promise((resolve, reject) => {
@@ -359,6 +378,11 @@
       const CACHE_KEY = 'blfl.conditions.cache.v1';
       const CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 
+  // If you run the local proxy (server/) during development, set PROXY_BASE to
+  // "http://localhost:3917". On deployed pages leave empty or set to your
+  // hosted proxy URL. When empty the client will skip proxy attempts.
+  const PROXY_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:3917' : '';
+
       function saveConditionsCache(obj){ try{ // strip source, keep parsed and ts only
         const payload = { ts: obj.ts || Date.now(), parsed: obj.parsed || {} }; localStorage.setItem(CACHE_KEY, JSON.stringify(payload)); $('#conditionsCached').textContent = new Date(payload.ts).toLocaleString(); }catch(e){console.warn('cache save failed', e);} }
       function loadConditionsCache(){ try{ const s=localStorage.getItem(CACHE_KEY); if(!s) return null; return JSON.parse(s); }catch(e){ return null; } }
@@ -440,6 +464,28 @@
             }catch(e){ console.warn('NDBC RSS failed', e); }
           }
 
+          async function tryProxyNdbc(stationId){
+            if(!PROXY_BASE) return;
+            try{
+              const url = `${PROXY_BASE.replace(/\/$/,'')}/api/ndbc/${stationId}`;
+              const resp = await fetch(url, { cache: 'no-store' });
+              if(!resp.ok) throw new Error('proxy HTTP '+resp.status);
+              const j = await resp.json();
+              const p = j.parsed || {};
+              // Populate fields if present
+              if(p.air_f != null) $('#airTemp').value = Math.round(p.air_f);
+              else if(p.air_c != null) $('#airTemp').value = Math.round(p.air_c * 9/5 + 32);
+              if(p.water_f != null) $('#surfaceTemp').value = Math.round(p.water_f);
+              else if(p.water_c != null) $('#surfaceTemp').value = Math.round(p.water_c * 9/5 + 32);
+              if(p.wave_ft != null) $('#waves').value = Math.round(p.wave_ft*10)/10;
+              if(p.wind_mph != null) $('#wind').value = `${p.wind_dir_compass||degToCompass(p.wind_dir_deg||0)} ${p.wind_mph} mph`;
+              else if(p.wind_mph_if_knots != null) $('#wind').value = `${p.wind_dir_compass||degToCompass(p.wind_dir_deg||0)} ${p.wind_mph_if_knots} mph`;
+              else if(p.wind_kts != null) $('#wind').value = `${p.wind_dir_compass||degToCompass(p.wind_dir_deg||0)} ${Math.round(p.wind_kts * 1.15078)} mph`;
+              updated = true;
+              console.log('Proxy NDBC returned:', j);
+            }catch(e){ console.warn('Proxy NDBC failed', e); }
+          }
+
           // Helper to save parsed fields when updated is true
           function saveParsedSnapshot(){ try{ const parsed = { airTemp: $('#airTemp').value, surfaceTemp: $('#surfaceTemp').value, waves: $('#waves').value, wind: $('#wind').value, clouds: $('#clouds').value }; const obj = { ts: Date.now(), parsed }; saveConditionsCache(obj); }catch(e){ console.warn('save snapshot failed', e); } }
 
@@ -461,8 +507,14 @@
             const d = Math.hypot(lat - s.lat, lon - s.lon);
             if (d < s.th) {
               try {
+                // Prefer proxy if configured/running locally
+                if (PROXY_BASE) {
+                  await tryProxyNdbc(s.id);
+                }
+                if (!updated) {
                   await tryNdbcRss(s.id);
-                } catch (e) { console.warn('Station fallback failed', s.id, e); }
+                }
+              } catch (e) { console.warn('Station fallback failed', s.id, e); }
             }
           }
             if(!updated){ // try applying cache
@@ -563,6 +615,98 @@
   async function exportCsv(){ const t=state.trips[currentTripId()]; if(!t) return alert('No trip.'); const h=['TripDate','Time','Timestamp','PortArea','GPS_Lat','GPS_Lon','Waypoint','WaterDepth_ft','SurfaceTemp_F','ThermoclineDepth_ft','Platform','RodPosition','LineType','LineStrength_lb','LineLengthOut_ft','DipsySize','DipsySetting','RiggerBallWeight_lb','RiggerBallDepth_ft','TargetDepth_ft','StrikeDepthSeen_ft','SpeedAtBall_mph','SOG_mph','TrollDirection','LureType','LureBrand','LureModel','LureSize','LureColor','LeaderLength_ft','Attractor/Flasher','Fly/MeatColor','Species','Length_in','Weight_lb','KeptOrReleased','HookLocation','Landed_YN','FightTime_min','Notes','HasPhoto']; const lines=[toCsvRow(h)]; const hdr=t.header||{}; for(const e of t.entries){ const [lat,lon]=(e.gps||'').split(',').map(s=>s?.trim()); const row=[ hdr.date||'', e.time||'', e.ts||'', hdr.port||'', lat||'', lon||'', '', e.waterDepth||'', hdr.surfaceTemp||'', hdr.thermocline||'', e.platform||'', '', e.lineType||'', e.lineStrength||'', e.lineOut||'', e.dipsySize||'', e.dipsySetting||'', e.ballWeight||'', e.ballDepth||'', e.targetDepth||'', e.strikeDepthSeen||'', e.speedBall||'', e.sog||'', e.trollDir||'', e.lureType||'', e.lureBrand||'', '', e.lureSize||'', e.lureColor||'', e.leaderLen||'', e.attractor||'', e.flyMeat||'', e.species||'', e.lengthIn||'', e.weightLb||'', e.keptRel||'', e.hookLoc||'', e.landed||'', '', e.notes||'', e.photo?'Y':'N' ]; lines.push(toCsvRow(row)); } download('catches_'+(hdr.date||'trip')+'.csv', lines.join('\n')); }
     async function exportJson(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos={}; for(const e of t.entries){ if(e.photo){ photos[e.id]=await getPhoto(e.id); } } const out={...t, photos, exportVersion:2}; download('trip_'+(t.header?.date||id)+'.json', JSON.stringify(out,null,2)); }
     async function exportAlbum(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos=[]; for(const e of t.entries){ if(e.photo){ photos.push({id:e.id, time:e.time, species:e.species, lure:[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '), durl: await getPhoto(e.id)}); } } const html='<!doctype html><meta charset="utf-8"><title>Album '+(t.header?.date||'trip')+'</title><style>body{font-family:system-ui;background:#0e131b;color:#e8eefb;margin:0;padding:16px}h1{font-size:20px} .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} figure{margin:0;background:#151b26;border:1px solid #243349;border-radius:12px;overflow:hidden} img{width:100%;height:200px;object-fit:cover;display:block} figcaption{padding:8px 10px;font-size:12px;color:#b9c9e3} </style><h1>Trip '+(t.header?.date||'')+'</h1><div class="g">'+photos.map(p=>'<figure><img src="'+p.durl+'"><figcaption>'+ (p.time||'') +' • '+ (p.species||'') +'<br>'+ (p.lure||'') +'</figcaption></figure>').join('')+'</div>'; download('album_'+(t.header?.date||id)+'.html', html); }
+    
+    // --- Google Sheets upload helpers ---
+    function loadGapiScript() {
+      return new Promise((resolve, reject) => {
+        if (window.gapi) return resolve();
+        const script = document.createElement('script');
+        script.src = 'https://apis.google.com/js/api.js';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.body.appendChild(script);
+      });
+    }
+
+    async function ensureGapi() {
+      await loadGapiScript();
+      if (!gapi.client) {
+        await new Promise((res, rej) => {
+          gapi.load('client:auth2', async () => {
+            try {
+              await gapi.client.init({ apiKey: API_KEY, clientId: CLIENT_ID, discoveryDocs: DISCOVERY_DOCS, scope: SCOPES });
+              res();
+            } catch (err) { rej(err); }
+          });
+        });
+      }
+    }
+
+    async function signInGapi() {
+      try {
+        await ensureGapi();
+        const GoogleAuth = gapi.auth2.getAuthInstance();
+        if (!GoogleAuth.isSignedIn.get()) await GoogleAuth.signIn();
+        toast('Signed in to Google');
+      } catch (err) { alert('Google sign-in failed: ' + err.message); }
+    }
+
+    function buildRowsForTrip(trip) {
+      const hdr = trip.header || {};
+      const rows = [];
+      // header row describing columns (optional) — uncomment to push as first row
+      // rows.push(['TripDate','Time','Port','GPS_Lat','GPS_Lon','WaterDepth_ft','SurfaceTemp_F','Thermocline_ft','Platform','Lure','Species','Length_in','Weight_lb','Kept','Landed','Notes','HasPhoto']);
+      for (const e of trip.entries) {
+        const [lat, lon] = (e.gps || '').split(',').map(s => s && s.trim());
+        rows.push([
+          hdr.date || '', e.time || '', hdr.port || '', lat || '', lon || '', e.waterDepth || '', hdr.surfaceTemp || '', hdr.thermocline || '', e.platform || '', [e.lureType, e.lureBrand, e.lureColor].filter(Boolean).join(' • '), e.species || '', e.lengthIn || '', e.weightLb || '', e.keptRel || '', e.landed || '', e.notes || '', e.photo ? 'Y' : 'N'
+        ]);
+      }
+      return rows;
+    }
+
+    async function uploadToSheets() {
+      const id = currentTripId(); if(!id) return alert('No trip selected');
+      const sheetId = (document.getElementById('sheetId').value || '').trim(); if(!sheetId) return alert('Paste a Google Spreadsheet ID first');
+      try {
+        await ensureGapi();
+        const GoogleAuth = gapi.auth2.getAuthInstance(); if (!GoogleAuth.isSignedIn.get()) await GoogleAuth.signIn();
+        const t = state.trips[id]; if(!t) return alert('Trip not found');
+        const rows = buildRowsForTrip(t);
+        // Append rows to first sheet (Sheet1) by default
+        const range = 'Sheet1!A1';
+        const resp = await gapi.client.sheets.spreadsheets.values.append({ spreadsheetId: sheetId, range, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS', resource: { values: rows } });
+        if (resp.status === 200) { toast('Uploaded ' + rows.length + ' rows to sheet'); } else { alert('Upload returned: ' + resp.statusText); }
+      } catch (err) { alert('Upload failed: ' + (err.message || err)); }
+    }
+
+    // --- Upload queue (offline-first) ---
+    const UPLOAD_QUEUE_KEY = 'blfl.upload.queue.v1';
+
+    function loadUploadQueue(){ try{ const s=localStorage.getItem(UPLOAD_QUEUE_KEY); return s?JSON.parse(s):[]; }catch(e){ return []; } }
+    function saveUploadQueue(q){ try{ localStorage.setItem(UPLOAD_QUEUE_KEY, JSON.stringify(q)); }catch(e){ console.warn('save queue failed', e); } }
+    function queuePush(item){ const q=loadUploadQueue(); q.push(item); saveUploadQueue(q); updatePendingCount(); }
+    function queuePop(){ const q=loadUploadQueue(); const it=q.shift(); saveUploadQueue(q); updatePendingCount(); return it; }
+    function updatePendingCount(){ const q=loadUploadQueue(); let badge=$('#uploadPending'); if(!badge){ // create small badge near upload button
+        const btn = $('#uploadSheet'); badge = document.createElement('span'); badge.id='uploadPending'; badge.className='badge-count'; badge.style.marginLeft='8px'; btn.parentNode.insertBefore(badge, btn.nextSibling); }
+      badge.textContent = q.length; if(q.length===0) badge.style.display='none'; else badge.style.display='inline-block'; }
+
+    async function flushUploadQueue(){ const q = loadUploadQueue(); if(!q.length) return; if(!navigator.onLine) return; try{ await ensureGapi(); const GoogleAuth = gapi.auth2.getAuthInstance(); if(!GoogleAuth.isSignedIn.get()) { console.log('Not signed in; will not flush'); return; } }catch(e){ console.warn('gapi not ready', e); return; }
+      // attempt to send until empty or error
+      while(true){ const item = loadUploadQueue()[0]; if(!item) break; try{ const resp = await gapi.client.sheets.spreadsheets.values.append({ spreadsheetId: item.sheetId, range: item.range||'Sheet1!A1', valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS', resource: { values: item.rows } }); if(resp.status===200){ // remove head
+              queuePop(); toast('Uploaded queued trip ('+ (item.rows.length) +' rows)'); continue; } else { console.warn('append returned', resp.status); break; } }catch(err){ console.warn('flush failed', err); break; } }
+    }
+
+    // Wire upload button to enqueue + attempt flush
+    document.getElementById('uploadSheet').addEventListener('click', ()=>{
+      const id = currentTripId(); if(!id) return alert('No trip selected'); const sheetId = (document.getElementById('sheetId').value || '').trim(); if(!sheetId) return alert('Paste a Google Spreadsheet ID first'); const t = state.trips[id]; const rows = buildRowsForTrip(t); const item = { ts: Date.now(), tripId: id, sheetId, rows, range: 'Sheet1!A1' }; queuePush(item); toast('Queued upload ('+rows.length+' rows)'); // try to flush immediately
+      flushUploadQueue();
+    });
+    document.getElementById('authGapi').addEventListener('click', signInGapi);
+
+    // Attempt flush on online and on init
+    window.addEventListener('online', ()=>{ console.log('online -> flushing upload queue'); flushUploadQueue(); });
+    window.addEventListener('load', ()=>{ updatePendingCount(); setTimeout(()=>flushUploadQueue(), 1000); });
     function download(name, content){ const blob=new Blob([content], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
     $('#exportCsv').onclick=exportCsv; $('#exportJson').onclick=exportJson; $('#exportAlbum').onclick=exportAlbum; $('#importJsonBtn').onclick=()=>$('#importJson').click();
     $('#importJson').onchange=(e)=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=async ()=>{ try{ const data=JSON.parse(r.result); if(!data.id) data.id=uid(); state.trips[data.id]={id:data.id, header:data.header||{}, entries:data.entries||[]}; if(data.photos){ for(const [eid,durl] of Object.entries(data.photos)){ try{ await savePhoto(eid,durl);}catch{} } } save(); refreshTripSelect(); $('#tripSelect').value=data.id; renderEntries(); renderSummary(); loadHeaderIntoForm(); alert('Trip imported.'); }catch(err){ alert('Import failed: '+err.message); } }; r.readAsText(f); };
@@ -600,6 +744,8 @@ This runs offline and saves to your device.`); };
     $('#quickToggle').addEventListener('dblclick', ()=>{ // quick clear validation marks
       $$('#tab-log .invalid').forEach(el=>el.classList.remove('invalid')); });
     init();
+  // Download button triggers the Catch Conditions flow (useful reminder)
+  $('#downloadConditions').addEventListener('click', ()=>{ if($('#fetchConditions')) $('#fetchConditions').click(); });
     // Register service worker for offline support (if available)
     if ('serviceWorker' in navigator) {
       // use relative path so it works on GitHub Pages project pages
