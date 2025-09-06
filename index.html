@@ -355,23 +355,36 @@
           const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=cloudcover,windspeed_10m,winddirection_10m,wave_height,temperature_2m`;
           const resp = await fetch(url);
           const data = await resp.json();
+          console.log('Weather API response:', data); // Debug log
+          let updated = false;
           if (data.current_weather) {
-            $('#airTemp').value = Math.round(data.current_weather.temperature * 9/5 + 32); // C to F
-            $('#wind').value = `${degToCompass(data.current_weather.winddirection)} ${Math.round(data.current_weather.windspeed)} mph`;
+            if (typeof data.current_weather.temperature === 'number') {
+              $('#airTemp').value = Math.round(data.current_weather.temperature * 9/5 + 32); // C to F
+              updated = true;
+            }
+            if (typeof data.current_weather.winddirection === 'number' && typeof data.current_weather.windspeed === 'number') {
+              $('#wind').value = `${degToCompass(data.current_weather.winddirection)} ${Math.round(data.current_weather.windspeed)} mph`;
+              updated = true;
+            }
           }
           // Try to get waves and clouds from hourly
           if (data.hourly) {
             // Use first value (current hour)
-            if (data.hourly.wave_height) {
+            if (Array.isArray(data.hourly.wave_height) && typeof data.hourly.wave_height[0] === 'number') {
               $('#waves').value = Math.round(data.hourly.wave_height[0] * 3.28084 * 10) / 10; // m to ft
+              updated = true;
             }
-            if (data.hourly.cloudcover) {
+            if (Array.isArray(data.hourly.cloudcover) && typeof data.hourly.cloudcover[0] === 'number') {
               const cc = data.hourly.cloudcover[0];
               let cloudType = 'Clear';
               if (cc > 80) cloudType = 'Overcast';
               else if (cc > 40) cloudType = 'Partly';
               $('#clouds').value = cloudType;
+              updated = true;
             }
+          }
+          if (!updated) {
+            alert('Weather data not available for this location/time.');
           }
           $('#fetchConditions').textContent = 'Fetched!';
         } catch (err) {
