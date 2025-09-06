@@ -80,6 +80,9 @@
           <div><label for="waves">Waves (ft)</label><input id="waves" type="number" inputmode="decimal" /></div>
           <div><label for="clouds">Cloud cover</label><select id="clouds"></select></div>
         </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="fetchConditions" type="button">Fetch Conditions (GPS)</button>
+        </div>
         <div class="hint">Tip: You can edit dropdown options under <b>Settings → Lists</b>.</div>
       </div>
       <div class="card">
@@ -254,6 +257,56 @@
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.from(document.querySelectorAll(sel));
     const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+    // --- Weather/Conditions Autofill ---
+    $('#fetchConditions').addEventListener('click', async () => {
+      if (!('geolocation' in navigator)) return alert('Geolocation not supported on this device/browser.');
+      $('#fetchConditions').disabled = true;
+      $('#fetchConditions').textContent = 'Getting location...';
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        $('#gps').value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+        $('#fetchConditions').textContent = 'Fetching weather...';
+        try {
+          // Open-Meteo API for weather
+          const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=cloudcover,windspeed_10m,winddirection_10m,wave_height,temperature_2m`;
+          const resp = await fetch(url);
+          const data = await resp.json();
+          if (data.current_weather) {
+            $('#airTemp').value = Math.round(data.current_weather.temperature * 9/5 + 32); // C to F
+            $('#wind').value = `${degToCompass(data.current_weather.winddirection)} ${Math.round(data.current_weather.windspeed)} mph`;
+          }
+          // Try to get waves and clouds from hourly
+          if (data.hourly) {
+            // Use first value (current hour)
+            if (data.hourly.wave_height) {
+              $('#waves').value = Math.round(data.hourly.wave_height[0] * 3.28084 * 10) / 10; // m to ft
+            }
+            if (data.hourly.cloudcover) {
+              const cc = data.hourly.cloudcover[0];
+              let cloudType = 'Clear';
+              if (cc > 80) cloudType = 'Overcast';
+              else if (cc > 40) cloudType = 'Partly';
+              $('#clouds').value = cloudType;
+            }
+          }
+          $('#fetchConditions').textContent = 'Fetched!';
+        } catch (err) {
+          alert('Weather fetch error: ' + err.message);
+          $('#fetchConditions').textContent = 'Fetch Conditions (GPS)';
+        }
+        $('#fetchConditions').disabled = false;
+      }, err => {
+        alert('Location error: ' + err.message + '\nTip: Ensure site permissions and HTTPS.');
+        $('#fetchConditions').textContent = 'Fetch Conditions (GPS)';
+        $('#fetchConditions').disabled = false;
+      }, {enableHighAccuracy:true, timeout:8000, maximumAge:10000});
+    });
+    function degToCompass(num) {
+      const val = Math.floor((num / 22.5) + 0.5);
+      const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+      return arr[(val % 16)];
+    }
     const LS_KEY = 'blfl.state.v2';
     let state = load() || { trips: {}, lists: defaults(), dataVersion:3, settings:{quickMode:false, sticky:true} };
     function defaults(){ return { Platform:["Downrigger","Dipsy","Copper","Leadcore","Planer","Flatline"], LineType:["Wire","Braid","Mono","Fluorocarbon","Copper","Leadcore"], LureType:["Spoon","Plug","Flasher/Fly","Meat Rig","Spin-n-Glow","Other"], Species:["Chinook (King)","Coho","Steelhead","Lake Trout","Brown Trout","Other"], TrollDirection:["N","NE","E","SE","S","SW","W","NW"], Clouds:["Clear","Partly","Overcast","Fog"], HookLocation:["Jaw","Corner","Tongue","Outside"] }; }
