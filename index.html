@@ -714,7 +714,7 @@
     function showUndo(){ toast('Entry deleted', true); }
     function init(){ fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); // load marine JSON URL into the settings input
     try{ const el = $('#marineJsonUrl'); if(el) el.value = (state.settings && state.settings.marineJsonUrl) || ''; }catch(e){}
-  try{ const st = $('#stationJsonTemplate'); if(st) st.value = (state.settings && state.settings.stationJsonTemplate) || 'https://elliottdanielp.github.io/big_lake_fishing_log/stations/{station}.json'; }catch(e){}
+  try{ const st = $('#stationJsonTemplate'); if(st) st.value = (state.settings && state.settings.stationJsonTemplate) || 'https://blfl-ndbc-proxy.elliottdanielp.workers.dev/stations/{station}.json'; }catch(e){}
         // load stations list (for nearest NDBC station lookup)
         try{
           fetch('stations.json', { cache: 'no-store' }).then(r=>r.json()).then(js=>{ window.__stations = js || [] }).catch(()=>{ window.__stations = []; });
