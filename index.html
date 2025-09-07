@@ -200,23 +200,10 @@
       </div>
       <div class="card">
         <div class="section-title">Export / backup</div>
-        <div class="grid cols-2">
+        <div class="grid cols-1">
           <button class="btn" id="exportCsv">Export catches (CSV)</button>
-          <button class="btn secondary" id="exportJson">Export all (JSON, incl. photos)</button>
-          <button class="btn" id="exportAlbum">Export album (HTML)</button>
-          <button class="btn warn" id="importJsonBtn">Import JSON</button>
-          <input id="importJson" class="hide" type="file" accept="application/json" />
-          <div style="grid-column:span 2; margin-top:6px">
-            <label for="sheetId">Google Spreadsheet ID (optional)</label>
-            <input id="sheetId" placeholder="Paste your Google Sheet ID to enable Upload" />
-            <div class="row" style="margin-top:8px">
-              <button class="btn" id="uploadSheet">Upload trip → Google Sheet</button>
-              <button class="btn secondary" id="authGapi">Sign In (Google)</button>
-            </div>
-            <div class="muted" style="margin-top:6px">Tip: Create a sheet and paste its ID here. The app will append rows for the current trip. Requires enabling Sheets API and OAuth client values in the code.</div>
-          </div>
         </div>
-        <div class="hint">Note: CSV can’t embed images in Google Sheets. Use the Album HTML or JSON if you want the photos included.</div>
+        <div class="hint">Note: CSV export is the simplest way to back up your log. Upload the file to Google Drive manually if you want a cloud backup.</div>
       </div>
       <div class="card">
         <div class="section-title">Manage data</div>
@@ -703,17 +690,7 @@
       }catch(e){ console.warn('gapi script load failed', e); toast('gapi script failed to load — check console for details'); }
     });
     function download(name, content){ const blob=new Blob([content], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
-    $('#exportCsv').onclick=exportCsv; $('#exportJson').onclick=exportJson; $('#exportAlbum').onclick=exportAlbum; $('#importJsonBtn').onclick=()=>$('#importJson').click();
-    $('#importJson').onchange=(e)=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=async ()=>{ try{ const data=JSON.parse(r.result); if(!data.id) data.id=uid(); state.trips[data.id]={id:data.id, header:data.header||{}, entries:data.entries||[]}; if(data.photos){ for(const [eid,durl] of Object.entries(data.photos)){ try{ await savePhoto(eid,durl);}catch{} } } save(); refreshTripSelect(); $('#tripSelect').value=data.id; renderEntries(); renderSummary(); loadHeaderIntoForm(); alert('Trip imported.'); }catch(err){ alert('Import failed: '+err.message); } }; r.readAsText(f); };
-  $('#clearTrip').onclick=async ()=>{ const id=currentTripId(); if(!id) return; if(confirm('Delete ALL entries for current trip?')){ const t=state.trips[id]; // cleanup photos
-    for(const e of t.entries){ if(e.photo){ try{ await deletePhoto(e.id);}catch{} } }
-    t.entries=[]; save(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); }
-  };
-  $('#deleteTrip').onclick=async ()=>{ const id=currentTripId(); if(!id) return; const txt=prompt('Type DELETE to permanently remove this trip (cannot be undone).'); if(txt!=='DELETE') return; const t=state.trips[id]; if(t){ for(const e of t.entries){ if(e.photo){ try{ await deletePhoto(e.id);}catch{} } } delete state.trips[id]; save(); refreshTripSelect(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); }
-  };
-  $('#clearAll').onclick=async ()=>{ if(confirm('Delete ALL trips from this device? This cannot be undone.')){ // cleanup all photos by iterating entries
-    for(const trip of Object.values(state.trips)){ for(const e of trip.entries){ if(e.photo){ try{ await deletePhoto(e.id);}catch{} } } }
-    state.trips={}; save(); refreshTripSelect(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); } };
+  $('#exportCsv').onclick=exportCsv;
     $('#addToHome').onclick=()=>{ alert(`Add to Home Screen:
 
 • iPhone (Safari): Share ▸ Add to Home Screen.
