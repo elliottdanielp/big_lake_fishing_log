@@ -19,6 +19,8 @@
     .tab-btn.active { color:#fff; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(82,167,255,.15) inset; }
     .card { background:var(--card); border:1px solid #243349; border-radius: var(--radius); box-shadow: 0 8px 24px var(--shadow); padding:18px; }
     .grid { display:grid; grid-template-columns: 1fr; gap: 18px; } @media(min-width:720px){ .grid.cols-2{ grid-template-columns: 1fr 1fr; } .grid.cols-3{ grid-template-columns: repeat(3,1fr);} }
+  /* prevent grid items from forcing horizontal overflow on small phones */
+  .grid > div { min-width:0; }
     label { display:block; font-size: 16px; color: var(--muted); margin-bottom:8px; font-weight:600; } input, select, textarea, button { width:100%; box-sizing:border-box; border-radius:16px; border:1.5px solid #2a3b54; background:#0c111a; color:#fff; padding:18px; font-size:20px; margin-bottom:8px; }
     select { padding-right:24px; } textarea { min-height:100px; }
     .row { display:flex; gap:14px; } .row > * { flex:1; } .chip { display:inline-flex; align-items:center; gap:8px; background:#0c111a; border:1.5px dashed #2f3f57; padding:12px 14px; border-radius:999px; font-size:16px; color:var(--muted); }
@@ -64,7 +66,11 @@
     .tab-btn { font-size:15px; padding:10px 8px; }
     .section-title { font-size:18px; }
     .card { padding:12px; }
+    /* avoid inputs causing horizontal overflow */
+    input, select, textarea { max-width:100%; box-sizing:border-box; }
   }
+  /* global safety to avoid horizontal scrolling caused by shadows/rounded inputs */
+  html,body{ overflow-x:hidden; }
   </style>
 </head>
 <body>
@@ -262,6 +268,11 @@
         <div class="prefs-row">
           <label class="switch"><input type="checkbox" id="prefQuickDefault"/> Quick mode by default</label>
           <label class="switch"><input type="checkbox" id="prefSticky" checked/> Sticky lure fields</label>
+        </div>
+        <div style="margin-top:12px">
+          <label for="marineJsonUrl">Optional: Marine data JSON URL (public)</label>
+          <input id="marineJsonUrl" placeholder="https://example.com/marine.json" />
+          <div class="hint">If you host a simple JSON file with fields { sstC: <Celsius>, waveM: <meters> } we will fetch it (useful at the dock before heading out).</div>
         </div>
         <div class="row" style="margin-top:10px">
           <button class="btn good" id="savePrefs" type="button">Save preferences</button>
@@ -620,14 +631,16 @@
       Object.values(state.trips||{}).forEach(trip=>{ (trip.entries||[]).forEach(e=>{ if(!e.ts){ const ts=computeTs(trip.header, e.time); e.ts=ts; } }); });
       save(); }
   function initPrefs(){ $('#prefQuickDefault').checked = !!(state.settings && state.settings.quickMode); $('#prefSticky').checked = ((state.settings && state.settings.sticky) !== false); }
-    function savePrefs(){ state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; save(); toast('Preferences saved'); applyQuickMode(); }
+  function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; save(); toast('Preferences saved'); applyQuickMode(); }
   attach('#savePrefs','click', savePrefs);
     function applyQuickMode(){ const quick = state.settings.quickMode; $('#quickToggle').textContent = 'Quick Mode: '+(quick?'On':'Off'); const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth','keptRel','landedYN']); $$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } }); }
   attach('#quickToggle','click', ()=>{ state.settings.quickMode=!state.settings.quickMode; save(); applyQuickMode(); });
     function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0);} }
     function hideToast(){ const el=$('#toast'); el.style.display='none'; }
     function showUndo(){ toast('Entry deleted', true); }
-    function init(){ fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); loadHeaderIntoForm(); applyQuickMode(); updateLogBadge(); }
+    function init(){ fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); // load marine JSON URL into the settings input
+      try{ const el = $('#marineJsonUrl'); if(el) el.value = (state.settings && state.settings.marineJsonUrl) || ''; }catch(e){}
+      loadHeaderIntoForm(); applyQuickMode(); updateLogBadge(); }
   attach('#prefSticky','change', ()=>{ /* immediate reflection not needed */ });
   attach('#prefQuickDefault','change', ()=>{ /* just state toggle on save */ });
     $('#keptRel').value='Kept';
