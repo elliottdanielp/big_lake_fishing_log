@@ -361,8 +361,7 @@
           // when switching to review or log, re-render
           if (tab === 'review') { renderSummary(); renderAnalytics(); }
           if (tab === 'log') { renderEntries(); }
-          console.log('tab switch ->', tab);
-          try{ toast('Switched to '+tab); }catch(e){}
+          
         });
       });
       // Delegated handler: catches clicks on inner elements/text
@@ -378,7 +377,7 @@
         });
         if (tab === 'review') { renderSummary(); renderAnalytics(); }
         if (tab === 'log') { renderEntries(); }
-        console.log('tab switch (delegated) ->', tab);
+        
       });
 
       // Add any other button listeners here as needed
