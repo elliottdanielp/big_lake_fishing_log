@@ -368,7 +368,41 @@
               }
               // attempt to fetch marine / surface data (sea surface temp, waves)
               try{
-                const marine = await fetchMarineNearest(latitude, longitude);
+                // compute nearest station if we have a stations list
+                let nearest = null;
+                try{
+                  const stations = window.__stations || [];
+                  if(stations.length){
+                    const toR = n => n * Math.PI / 180;
+                    const hav = (a,b)=>{ const R=6371; const dLat=toR(b.lat-a.lat); const dLon=toR(b.lon-a.lon); const la=toR(a.lat), lb=toR(b.lat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
+                    let best=null, bestD=Infinity; stations.forEach(s=>{ const d = hav({lat: latitude, lon: longitude}, {lat:s.lat, lon:s.lon}); if(d<bestD){ bestD=d; best=s; } }); if(best) nearest = Object.assign({}, best, {distKm: bestD});
+                  }
+                }catch(e){ console.warn('stations lookup failed', e); }
+                if(nearest){ const cs = document.getElementById('conditionsStation'); if(cs) cs.textContent = nearest.name + ' • ' + (nearest.distKm? nearest.distKm.toFixed(1)+' km':''); }
+
+                // try station-specific JSON template if configured
+                let marine = null;
+                try{
+                  const tpl = (state.settings && state.settings.stationJsonTemplate) ? String(state.settings.stationJsonTemplate).trim() : '';
+                  if(tpl && nearest){
+                    const url = tpl.replace('{station}', encodeURIComponent(nearest.id)).replace('{lat}', encodeURIComponent(latitude)).replace('{lon}', encodeURIComponent(longitude));
+                    try{
+                      const r = await fetch(url, { cache: 'no-store' });
+                      if(r.ok){
+                        const js = await r.json();
+                        const s = js && (js.sstC ?? js.surfaceTempC ?? js.sst ?? null);
+                        const wv = js && (js.waveM ?? js.significant_wave_height ?? js.wave ?? null);
+                        if(s!==null || wv!==null){ marine = { sstC: s===null?null:Number(s), waveM: wv===null?null:Number(wv) }; }
+                      } else { console.warn('station template HTTP', r.status); }
+                    }catch(e){ console.warn('station template fetch failed', e); }
+                  }
+                }catch(e){ console.warn('station template handling failed', e); }
+
+                // fallback to default marine fetch if we didn't get a station JSON
+                if(!marine){
+                  marine = await fetchMarineNearest(latitude, longitude);
+                }
+
                 if(marine){
                   if(typeof marine.sstC === 'number'){
                     const sstF = Math.round((marine.sstC * 9/5) + 32);
@@ -377,7 +411,6 @@
                     if(cur && state.trips[cur]) state.trips[cur].header.surfaceTemp = String(sstF);
                   }
                   if(typeof marine.waveM === 'number'){
-                    // convert meters to feet
                     const waveFt = (marine.waveM * 3.28084).toFixed(1);
                     const wEl = document.getElementById('waves');
                     if(wEl) wEl.value = waveFt;
@@ -673,7 +706,11 @@
     function hideToast(){ const el=$('#toast'); el.style.display='none'; }
     function showUndo(){ toast('Entry deleted', true); }
     function init(){ fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); // load marine JSON URL into the settings input
-      try{ const el = $('#marineJsonUrl'); if(el) el.value = (state.settings && state.settings.marineJsonUrl) || ''; }catch(e){}
+        try{ const el = $('#marineJsonUrl'); if(el) el.value = (state.settings && state.settings.marineJsonUrl) || ''; }catch(e){}
+        // load stations list (for nearest NDBC station lookup)
+        try{
+          fetch('stations.json', { cache: 'no-store' }).then(r=>r.json()).then(js=>{ window.__stations = js || [] }).catch(()=>{ window.__stations = []; });
+        }catch(e){ window.__stations = []; }
       loadHeaderIntoForm(); applyQuickMode(); updateLogBadge(); }
   attach('#prefSticky','change', ()=>{ /* immediate reflection not needed */ });
   attach('#prefQuickDefault','change', ()=>{ /* just state toggle on save */ });
