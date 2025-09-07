@@ -206,7 +206,6 @@
           <button class="btn" id="exportAlbum">Export album (HTML)</button>
           <button class="btn warn" id="importJsonBtn">Import JSON</button>
           <input id="importJson" class="hide" type="file" accept="application/json" />
-          <button class="btn good" id="exportDrive">Export to Google Drive</button>
           <div style="grid-column:span 2; margin-top:6px">
             <label for="sheetId">Google Spreadsheet ID (optional)</label>
             <input id="sheetId" placeholder="Paste your Google Sheet ID to enable Upload" />
@@ -281,88 +280,6 @@
   // checking secrets into the repo. Create `config.js` with `window.APP_CONFIG`.
   const CLIENT_ID = (window.APP_CONFIG && window.APP_CONFIG.CLIENT_ID) || '112857535143-9v0hn41g656hib0npfcgkk70avoefkf7.apps.googleusercontent.com';
   const API_KEY = (window.APP_CONFIG && window.APP_CONFIG.API_KEY) || 'AIzaSyCnm5SqrBqj8CRNbkQ2iQa72H54p_N8GZo';
-    const DISCOVERY_DOCS = [
-      "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
-      "https://sheets.googleapis.com/$discovery/rest?version=v4"
-    ];
-    // Request Drive file and Sheets access. Replace keys with your project's values.
-    const SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets";
-
-    function loadGapiScript() {
-      return new Promise((resolve, reject) => {
-        if (window.gapi) return resolve();
-        const script = document.createElement('script');
-        script.src = "https://apis.google.com/js/api.js";
-        script.onload = resolve;
-        script.onerror = reject;
-        document.body.appendChild(script);
-      });
-    }
-
-    async function initGapi() {
-      await loadGapiScript();
-      return new Promise((resolve, reject) => {
-        gapi.load('client:auth2', async () => {
-          try {
-            await gapi.client.init({
-              apiKey: API_KEY,
-              clientId: CLIENT_ID,
-              discoveryDocs: DISCOVERY_DOCS,
-              scope: SCOPES
-            });
-            resolve();
-          } catch (e) {
-            reject(e);
-          }
-        });
-      });
-    }
-
-    async function exportToDrive() {
-      try {
-        await initGapi();
-        const GoogleAuth = gapi.auth2.getAuthInstance();
-        if (!GoogleAuth.isSignedIn.get()) {
-          await GoogleAuth.signIn();
-        }
-        // Export current trip as JSON
-        const id = currentTripId();
-        if (!id) return alert('No trip.');
-        const t = state.trips[id];
-        const photos = {};
-        for (const e of t.entries) {
-          if (e.photo) {
-            photos[e.id] = await getPhoto(e.id);
-          }
-        }
-        const out = { ...t, photos, exportVersion: 2 };
-        const fileContent = JSON.stringify(out, null, 2);
-        const file = new Blob([fileContent], { type: 'application/json' });
-        const metadata = {
-          name: 'trip_' + (t.header?.date || id) + '.json',
-          mimeType: 'application/json'
-        };
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-        form.append('file', file);
-        const accessToken = gapi.auth.getToken().access_token;
-        const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-          method: 'POST',
-          headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
-          body: form
-        });
-        if (resp.ok) {
-          alert('Exported to Google Drive!');
-        } else {
-          alert('Drive upload failed: ' + (await resp.text()));
-        }
-      } catch (err) {
-        alert('Google Drive error: ' + err.message);
-      }
-    }
-
-    $('#exportDrive').onclick = exportToDrive;
-    // --- Weather/Conditions Autofill ---
     $('#fetchConditions').addEventListener('click', async () => {
       if (!('geolocation' in navigator)) return alert('Geolocation not supported on this device/browser.');
       $('#fetchConditions').disabled = true;
