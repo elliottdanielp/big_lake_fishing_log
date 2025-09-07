@@ -13,6 +13,8 @@ async function handle(request){
     const station = parts.length ? (parts[parts.length-1].replace(/\.json$/,'') ) : null;
     if(!station) return new Response(JSON.stringify({ error:'station missing in path'}), { status:400, headers: corsHeaders() });
   const debugMode = url.searchParams.get('debug');
+  const rawMode = url.searchParams.get('raw');
+  const prefer = url.searchParams.get('prefer'); // e.g. 'ocean-spec'
 
     // Try .ocean first
     const oceanUrl = `https://www.ndbc.noaa.gov/data/realtime2/${station}.ocean`;
@@ -22,8 +24,10 @@ async function handle(request){
       if(r.ok){
         const txt = await r.text();
         lastFetched.ocean = txt;
+        if(rawMode) return jsonResponse({ station, raw: lastFetched });
         const parsed = parseOceanText(txt);
-        if(parsed) return jsonResponse(Object.assign({ station }, parsed));
+        // honor prefer=ocean-spec by not returning yet unless we also parse spec later
+        if(parsed && !prefer) return jsonResponse(Object.assign({ station }, parsed));
       }
     }catch(e){ /* ignore and fallthrough */ console.warn('ocean fetch failed', e); }
 
@@ -34,10 +38,19 @@ async function handle(request){
       if(r2.ok){
         const txt2 = await r2.text();
         lastFetched.spec = txt2;
+        if(rawMode) return jsonResponse({ station, raw: lastFetched });
         const parsed2 = parseSpecText(txt2);
-        if(parsed2) return jsonResponse(Object.assign({ station }, parsed2));
+        if(parsed2 && !prefer) return jsonResponse(Object.assign({ station }, parsed2));
       }
     }catch(e){ console.warn('spec fetch failed', e); }
+
+    // If prefer=ocean-spec, try to parse both and compose a response
+    if(prefer === 'ocean-spec'){
+      let composed = { station };
+      try{ if(lastFetched.ocean){ const p = parseOceanText(lastFetched.ocean); if(p && p.sstC !== undefined) composed.sstC = p.sstC; } }catch(e){}
+      try{ if(lastFetched.spec){ const p2 = parseSpecText(lastFetched.spec); if(p2 && p2.waveM !== undefined) composed.waveM = p2.waveM; } }catch(e){}
+      if(composed.sstC !== undefined || composed.waveM !== undefined) return jsonResponse(composed);
+    }
 
     // If debug requested, return the raw upstream content to help tuning
     if(debugMode){

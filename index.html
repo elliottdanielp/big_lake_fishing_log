@@ -116,6 +116,7 @@
         <div style="margin-top:8px">
           <div class="muted">Tip: Tap <b>Download</b> or <b>Catch Conditions</b> before you leave to download latest conditions. Last cached: <span id="conditionsCached">—</span></div>
           <div class="muted">Nearest station: <span id="conditionsStation">—</span></div>
+          <div id="marineSource" class="muted">Source: —</div>
         </div>
         <div class="hint">Tip: You can edit dropdown options under <b>Settings → Lists</b>.</div>
       </div>
@@ -283,6 +284,7 @@
         <div class="row" style="margin-top:10px">
           <button class="btn good" id="savePrefs" type="button">Save preferences</button>
           <button class="btn secondary" id="testStationJson" type="button">Test station JSON</button>
+          <button class="btn secondary" id="debugStationJson" type="button">Debug station (raw)</button>
         </div>
         <div class="hint">Sticky keeps lure fields after saving. Quick mode hides advanced fields for speed.</div>
       </div>
@@ -423,6 +425,18 @@
                     if(wEl) wEl.value = waveFt;
                     if(cur && state.trips[cur]) state.trips[cur].header.waves = String(waveFt);
                   }
+                  // persist source metadata if available
+                  try{
+                    const ms = document.getElementById('marineSource');
+                    const stationId = (marine && marine.station) ? String(marine.station) : (nearest && nearest.id ? String(nearest.id) : '');
+                    const src = stationId ? `buoy ${stationId}` : 'autofill';
+                    if(cur && state.trips[cur]){
+                      state.trips[cur].header.marineSource = src;
+                      state.trips[cur].header.marineFetchedAt = Date.now();
+                      if(stationId) state.trips[cur].header.marineStation = stationId;
+                    }
+                    if(ms) ms.textContent = 'Source: Auto-filled from ' + src;
+                  }catch(e){ console.warn('failed to persist marine source', e); }
                 }
               }catch(e){ console.warn('marine fetch error', e); }
               save();
@@ -554,6 +568,43 @@
       //    or a full Open-Meteo marine response (hourly.time + hourly.sea_surface_temperature etc.).
       try{
         const mj = (state && state.settings && state.settings.marineJsonUrl) ? String(state.settings.marineJsonUrl).trim() : '';
+        // ALSO: if user configured a station JSON template (worker), prefer calling it with prefer=ocean-spec
+        const tpl = (state && state.settings && state.settings.stationJsonTemplate) ? String(state.settings.stationJsonTemplate).trim() : '';
+        if(tpl){
+          try{
+            // If we have a stations list, compute nearest id (best-effort). Otherwise the calling code may have provided nearest id via template placeholders.
+            let stationId = '';
+            try{
+              const stations = window.__stations || [];
+              if(stations.length){
+                // simple haversine nearest
+                const toR = n => n * Math.PI / 180;
+                const hav = (a,b)=>{ const R=6371; const dLat=toR(b.lat-a.lat); const dLon=toR(b.lon-a.lon); const la=toR(a.lat), lb=toR(b.lat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
+                let best=null, bestD=Infinity; stations.forEach(s=>{ const d = hav({lat: lat, lon: lon}, {lat:s.lat, lon:s.lon}); if(d<bestD){ bestD=d; best=s; } }); if(best) stationId = best.id || '';
+              }
+            }catch(e){ console.warn('nearest station lookup failed', e); }
+            // build URL by substituting {station},{lat},{lon}
+            let url = tpl.replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+            if(stationId) url = url.replace('{station}', encodeURIComponent(stationId));
+            // request prefer=ocean-spec so worker composes SST from .ocean and WVHT from .spec
+            const debugSuffix = url.includes('?') ? '&' : '?';
+            const prefUrl = url + debugSuffix + 'prefer=ocean-spec';
+            const r = await fetch(prefUrl, { cache: 'no-store' });
+            if(r.ok){
+              const js = await r.json();
+              // Accept tiny shapes or composed fields
+              const maybeSst = js && (js.sstC ?? js.surfaceTempC ?? js.sst ?? null);
+              const maybeWave = js && (js.waveM ?? js.significant_wave_height ?? js.wave ?? null);
+              if(maybeSst !== undefined || maybeWave !== undefined){
+                const s = (maybeSst===null||maybeSst===undefined)? null : Number(maybeSst);
+                const w = (maybeWave===null||maybeWave===undefined)? null : Number(maybeWave);
+                return { sstC: s, waveM: w };
+              }
+            } else {
+              console.warn('station template prefer fetch failed', r.status, prefUrl);
+            }
+          }catch(e){ console.warn('station template prefer fetch error', e); }
+        }
         if(mj){
           try{
             // allow simple placeholders {lat} and {lon} in the URL
@@ -756,6 +807,39 @@
         }catch(e){ toast('Fetch error (see console)'); console.warn('station fetch error', e); }
       }
     }catch(e){ toast('Test failed'); console.warn('testStationJson failed', e); }
+  });
+  attach('#debugStationJson','click', async ()=>{
+    try{
+      const tpl = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : '';
+      if(!tpl){ toast('Set station JSON template first in Preferences'); return; }
+      const stations = window.__stations || [];
+      let nearest = stations[0] || null;
+      if(stations.length && ('geolocation' in navigator)){
+        navigator.geolocation.getCurrentPosition(async pos=>{
+          const lat = pos.coords.latitude, lon = pos.coords.longitude;
+          const toR = n => n * Math.PI / 180;
+          const hav = (a,b)=>{ const R=6371; const dLat=toR(b.lat-a.lat); const dLon=toR(b.lon-a.lon); const la=toR(a.lat), lb=toR(b.lat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
+          let best=null, bestD=Infinity; stations.forEach(s=>{ const d = hav({lat,lon}, {lat:s.lat, lon:s.lon}); if(d<bestD){ bestD=d; best=s; } }); if(best) nearest = best;
+          const url = tpl.replace('{station}', encodeURIComponent(nearest.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+          const debugUrl = url + (url.includes('?')? '&' : '?') + 'debug=1&prefer=ocean-spec';
+          try{
+            const r = await fetch(debugUrl, { cache: 'no-store' });
+            const js = await r.json();
+            console.log('debug station response', js);
+            if(js && js.raw){ toast('Raw data returned; see console'); } else if(js && (js.sstC!==undefined || js.waveM!==undefined)){ toast('Parsed station data returned; see console'); } else { toast('No usable data; see console'); }
+          }catch(e){ toast('Debug fetch failed (see console)'); console.warn('debug fetch error', e); }
+        }, err=>{ toast('Geolocation failed: '+(err && err.message)); console.warn('geolocation failed', err); });
+      } else {
+        try{
+          const url = tpl.replace('{station}', encodeURIComponent(nearest && nearest.id || ''));
+          const debugUrl = url + (url.includes('?')? '&' : '?') + 'debug=1&prefer=ocean-spec';
+          const r = await fetch(debugUrl, { cache: 'no-store' });
+          const js = await r.json();
+          console.log('debug station response', js);
+          if(js && js.raw){ toast('Raw data returned; see console'); } else if(js && (js.sstC!==undefined || js.waveM!==undefined)){ toast('Parsed station data returned; see console'); } else { toast('No usable data; see console'); }
+        }catch(e){ toast('Debug fetch failed (see console)'); console.warn('debug fetch error', e); }
+      }
+    }catch(e){ toast('Debug failed'); console.warn('debugStationJson failed', e); }
   });
   attach('#downloadConditions','click', ()=>{ if($('#fetchConditions')) $('#fetchConditions').click(); });
     // Register service worker for offline support (if available)
