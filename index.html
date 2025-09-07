@@ -299,7 +299,13 @@
       $('#forceSave')?.addEventListener('click', () => addOrUpdateEntry(true));
       $('#cancelEdit')?.addEventListener('click', () => { setEditing(false); clearCatchForm(false); });
       $('#dupLast')?.addEventListener('click', () => {
-        // ...existing code...
+        const t=state.trips[currentTripId()];
+        if(!t||!t.entries.length) return toast('No previous entry');
+        const last=t.entries[t.entries.length-1];
+        loadEntryIntoForm(last, true);
+        editingEntryId=null;
+        setNow();
+        setEditing(false);
       });
       $('#resetForm')?.addEventListener('click', clearCatchForm);
       $('#clearPhoto')?.addEventListener('click', () => {
