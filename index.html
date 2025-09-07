@@ -58,6 +58,13 @@
     .tabs { gap:6px; padding:6px 6px 8px; }
     #toast { font-size:16px; padding:12px 18px; bottom:18px; }
   }
+  /* iPhone 15 Pro specific (approx CSS device width 393px) */
+  @media(max-width:400px){
+    input, select, textarea, button { padding:10px; font-size:15px; border-radius:10px; }
+    .tab-btn { font-size:15px; padding:10px 8px; }
+    .section-title { font-size:18px; }
+    .card { padding:12px; }
+  }
   </style>
 </head>
 <body>
@@ -509,8 +516,16 @@
     // Query Open-Meteo's Marine API (no key). Returns { sstC, waveM } or throws.
     async function fetchOpenMeteoMarine(lat, lon){
       // hourly=sea_surface_temperature,significant_wave_height
-      const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&hourly=sea_surface_temperature,significant_wave_height&timezone=auto`;
-      const res = await fetch(url, { cache: 'no-store' });
+      // If a proxy is configured (to bypass CORS or add station logic), use it
+      const proxy = (window && window.MARINE_PROXY_URL) ? window.MARINE_PROXY_URL.replace(/\/$/, '') : null;
+      let res;
+      if(proxy){
+        const url = `${proxy}/api/marine?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+        res = await fetch(url, { cache: 'no-store' });
+      } else {
+        const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&hourly=sea_surface_temperature,significant_wave_height&timezone=auto`;
+        res = await fetch(url, { cache: 'no-store' });
+      }
       if(!res.ok) throw new Error('Marine API HTTP '+res.status);
       const js = await res.json();
       // pick nearest hourly value

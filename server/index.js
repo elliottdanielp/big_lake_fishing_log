@@ -56,5 +56,22 @@ app.get('/api/ndbc/:station', async (req, res) => {
   res.status(502).json({ error: 'no data available for station', station });
 });
 
+// Simple marine proxy: forwards to Open-Meteo Marine API to avoid CORS issues from the browser.
+app.get('/api/marine', async (req, res) => {
+  const lat = req.query.lat;
+  const lon = req.query.lon;
+  if (!lat || !lon) return res.status(400).json({ error: 'lat & lon required' });
+  try {
+    const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&hourly=sea_surface_temperature,significant_wave_height&timezone=auto`;
+    const r = await fetch(url, { timeout: 15000 });
+    if (!r.ok) return res.status(502).json({ error: 'upstream error', status: r.status });
+    const js = await r.json();
+    res.json(js);
+  } catch (err) {
+    console.warn('marine proxy error', err && err.message);
+    res.status(502).json({ error: 'fetch failed', message: String(err && err.message) });
+  }
+});
+
 const PORT = process.env.PORT || 3917;
 app.listen(PORT, () => console.log(`BLFL proxy listening on port ${PORT}`));
