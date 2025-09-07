@@ -311,8 +311,10 @@
       $('#clearPhoto')?.addEventListener('click', () => {
         // ...existing code...
       });
-      $('#lightboxClose')?.onclick = () => $('#lightbox').classList.add('hide');
-      $('#lightbox')?.onclick = (e) => { if(e.target.id==='lightbox') $('#lightbox').classList.add('hide'); };
+  const _lbClose = $('#lightboxClose');
+  if(_lbClose) _lbClose.onclick = () => { const lb = $('#lightbox'); if(lb) lb.classList.add('hide'); };
+  const _lightbox = $('#lightbox');
+  if(_lightbox) _lightbox.onclick = (e) => { if(e.target && e.target.id === 'lightbox') { _lightbox.classList.add('hide'); } };
       $('#exportCsv')?.addEventListener('click', exportCsv);
       // Add any other button listeners here as needed
     });
@@ -382,7 +384,7 @@
   function finalizeDelete(){ if(!pendingDelete) return; if(pendingDelete.entry.photo){ deletePhoto(pendingDelete.entry.id).catch(()=>{}); } pendingDelete=null; hideToast(); }
   function undoDelete(){ if(!pendingDelete) return; const t=state.trips[currentTripId()]; if(!t){ pendingDelete=null; return; } t.entries.push(pendingDelete.entry); save(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); pendingDelete=null; hideToast(); toast('Restored'); }
     async function openLightbox(entryId){ const durl = await getPhoto(entryId); if(!durl){ alert('No photo for this entry.'); return; } $('#lightboxImg').src=durl; $('#lightbox').classList.remove('hide'); }
-    $('#lightboxClose').onclick = ()=> $('#lightbox').classList.add('hide'); $('#lightbox').onclick = (e)=>{ if(e.target.id==='lightbox') $('#lightbox').classList.add('hide'); };
+  // lightbox handlers are attached inside DOMContentLoaded above (guarded). Duplicate handlers removed.
     function renderSummary(){ const t=state.trips[currentTripId()]; const box=$('#summary'); if(!t||!t.entries.length){ box.innerHTML='<span class="muted">No entries yet.</span>'; return; } const h=t.header||{}; const n=t.entries.length; const landed=t.entries.filter(e=>e.landed==='Y').length; const kept=t.entries.filter(e=>e.keptRel==='Kept').length; const bestWaterDepth=mode(t.entries.map(e=>e.waterDepth).filter(Number.isFinite)); const bestTargetDepth=mode(t.entries.map(e=>e.targetDepth).filter(Number.isFinite)); const bestLureType=mode(t.entries.map(e=>e.lureType).filter(Boolean)); const bestColor=mode(t.entries.map(e=>e.lureColor).filter(Boolean)); const bestDir=mode(t.entries.map(e=>e.trollDir).filter(Boolean)); const lengths=t.entries.map(e=>e.lengthIn).filter(Number.isFinite); const weights=t.entries.map(e=>e.weightLb).filter(Number.isFinite); const avg=(arr)=> (arr.length? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1):''); const chips=[`Date: <b>${h.date||'-'}</b>`,`Port: <b>${h.port||'-'}</b>`,`Crew: <b>${h.crew||'-'}</b>`,`Entries: <b>${n}</b>`,`Landed: <b>${landed}</b>`,`Kept: <b>${kept}</b>`,`Best water depth: <b>${bestWaterDepth||'-'}</b>`,`Best target depth: <b>${bestTargetDepth||'-'}</b>`,`Best direction: <b>${bestDir||'-'}</b>`,`Best lure: <b>${bestLureType||'-'}</b>`,`Best color: <b>${bestColor||'-'}</b>`]; if(lengths.length>=2) chips.push(`Avg length: <b>${avg(lengths)} in</b>`); if(weights.length>=2) chips.push(`Avg weight: <b>${avg(weights)} lb</b>`); box.innerHTML='<div class="grid cols-3">'+chips.map(c=>`<div class="chip">${c}</div>`).join('')+'</div>'; }
     function updateLogBadge(){ const t=state.trips[currentTripId()]; const badge=$('#logCountBadge'); if(!badge) return; const n=t?.entries.length||0; if(n){ badge.style.display='inline-block'; badge.textContent=n; } else { badge.style.display='none'; } }
     function renderAnalytics(){ const t=state.trips[currentTripId()]; const box=$('#analytics'); if(!box) return; if(!t||!t.entries.length){ box.innerHTML='(No data)'; return; } const entries=t.entries.slice(); const countBy=(k)=>{ const m={}; entries.forEach(e=>{ const v=e[k]; if(!v) return; m[v]=(m[v]||0)+1; }); return Object.entries(m).sort((a,b)=>b[1]-a[1]); }; const top=(arr,n=3)=>arr.slice(0,n).map(([k,v])=>`${k} (${v})`).join(', '); const platforms=countBy('platform'); const species=countBy('species'); const lureTypes=countBy('lureType'); const colors=countBy('lureColor'); // depth buckets 10 ft
