@@ -509,11 +509,45 @@
     // Real marine data (surface temp, waves) typically comes from NOAA/GLERL/NDBC/ERDDAP and may need different endpoints.
     // This placeholder returns null and is intended to be replaced with a proper API call later.
     async function fetchMarineNearest(lat, lon){
-      // 1) Attempt GLERL/NDBC (not implemented client-side because of CORS); placeholder for future server-side lookup
+      // 1) If the user supplied a public JSON URL in Settings, try it first.
+      //    Accepts either a tiny JSON like { sstC: 4.2, waveM: 0.6 }
+      //    or a full Open-Meteo marine response (hourly.time + hourly.sea_surface_temperature etc.).
       try{
-        // TODO: implement server-side GLERL/NDBC lookup and return { surfaceTempC, waveHeightM }
-        // For now, proceed to fallback
-      }catch(e){ console.warn('GLERL lookup failed (skipping):', e); }
+        const mj = (state && state.settings && state.settings.marineJsonUrl) ? String(state.settings.marineJsonUrl).trim() : '';
+        if(mj){
+          try{
+            // allow simple placeholders {lat} and {lon} in the URL
+            let url = mj.replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+            const r = await fetch(url, { cache: 'no-store' });
+            if(r.ok){
+              const js = await r.json();
+              // tiny JSON shape
+              const maybeSst = js && (js.sstC ?? js.surfaceTempC ?? js.sst ?? js.sea_surface_temperature);
+              const maybeWave = js && (js.waveM ?? js.significant_wave_height ?? js.waveM ?? js.wave ?? js.significant_wave_height_meters);
+              if(maybeSst !== undefined || maybeWave !== undefined){
+                const s = (maybeSst===null||maybeSst===undefined)? null : Number(maybeSst);
+                const w = (maybeWave===null||maybeWave===undefined)? null : Number(maybeWave);
+                return { sstC: s, waveM: w };
+              }
+              // try to parse full Open-Meteo marine response
+              if(js && js.hourly && Array.isArray(js.hourly.time)){
+                const times = js.hourly.time.map(t=>new Date(t).getTime());
+                const now = Date.now();
+                let bestIdx = 0, bestDiff = Infinity;
+                for(let i=0;i<times.length;i++){ const d = Math.abs(times[i]-now); if(d<bestDiff){ bestDiff=d; bestIdx=i; } }
+                const sst = (js.hourly.sea_surface_temperature && js.hourly.sea_surface_temperature[bestIdx]!==undefined) ? Number(js.hourly.sea_surface_temperature[bestIdx]) : null;
+                const wave = (js.hourly.significant_wave_height && js.hourly.significant_wave_height[bestIdx]!==undefined) ? Number(js.hourly.significant_wave_height[bestIdx]) : null;
+                return { sstC: sst, waveM: wave };
+              }
+              // if we reach here, the JSON didn't match expected shapes
+              console.warn('marineJsonUrl returned JSON but no recognizable fields');
+            } else {
+              console.warn('marineJsonUrl HTTP', r.status);
+            }
+          }catch(e){ console.warn('Failed to fetch/parse marineJsonUrl', e); }
+        }
+      }catch(e){ console.warn('marineJsonUrl handling failed', e); }
+
       // 2) Fallback: Open-Meteo Marine API (public, no key) — returns sea surface temperature and significant wave height (hourly)
       try{
         const m = await fetchOpenMeteoMarine(lat, lon);
