@@ -778,7 +778,57 @@
     }
     function mode(arr){ if(!arr.length) return ''; const map=new Map(); arr.forEach(v=>map.set(v,(map.get(v)||0)+1)); let m='',c=0; map.forEach((n,k)=>{ if(n>c){c=n;m=k;} }); return m; }
     function toCsvRow(fields){ return fields.map(v=>{ if(v===null||v===undefined) v=''; v=String(v); if(/[",\n]/.test(v)) v='"'+v.replace(/"/g,'""')+'"'; return v; }).join(','); }
-  async function exportCsv(){ const t=state.trips[currentTripId()]; if(!t) return alert('No trip.'); const h=['TripDate','Time','Timestamp','PortArea','GPS_Lat','GPS_Lon','Waypoint','WaterDepth_ft','SurfaceTemp_F','Platform','RodPosition','LineType','LineStrength_lb','LineLengthOut_ft','DipsySize','DipsySetting','RiggerBallWeight_lb','RiggerBallDepth_ft','TargetDepth_ft','StrikeDepthSeen_ft','SpeedAtBall_mph','SOG_mph','TrollDirection','LureType','LureBrand','LureModel','LureSize','LureColor','LeaderLength_ft','Attractor/Flasher','Fly/MeatColor','Species','Length_in','Weight_lb','KeptOrReleased','HookLocation','Landed_YN','FightTime_min','Notes','HasPhoto']; const lines=[toCsvRow(h)]; const hdr=t.header||{}; for(const e of t.entries){ const parts=(e.gps||'').split(','); const lat=(parts[0] && parts[0].trim())||''; const lon=(parts[1] && parts[1].trim())||''; const row=[ hdr.date||'', e.time||'', e.ts||'', hdr.port||'', lat||'', lon||'', '', hdr.surfaceTemp||'', e.platform||'', '', e.lineType||'', e.lineStrength||'', e.lineOut||'', e.dipsySize||'', e.dipsySetting||'', e.ballWeight||'', e.ballDepth||'', e.targetDepth||'', e.strikeDepthSeen||'', e.speedBall||'', e.sog||'', e.trollDir||'', e.lureType||'', e.lureBrand||'', '', e.lureSize||'', e.lureColor||'', e.leaderLen||'', e.attractor||'', e.flyMeat||'', e.species||'', e.lengthIn||'', e.weightLb||'', e.keptRel||'', e.hookLoc||'', e.landed||'', '', e.notes||'', e.photo?'Y':'N' ]; lines.push(toCsvRow(row)); } download('catches_'+(hdr.date||'trip')+'.csv', lines.join('\n')); }
+  async function exportCsv(){ const t=state.trips[currentTripId()]; if(!t) return alert('No trip.'); const h=['TripDate','Time','Timestamp','PortArea','GPS_Lat','GPS_Lon','Waypoint','WaterDepth_ft','SurfaceTemp_F','Platform','RodPosition','LineType','LineStrength_lb','LineLengthOut_ft','DipsySize','DipsySetting','RiggerBallWeight_lb','RiggerBallDepth_ft','TargetDepth_ft','StrikeDepthSeen_ft','SpeedAtBall_mph','SOG_mph','TrollDirection','LureType','LureBrand','LureModel','LureSize','LureColor','LeaderLength_ft','Attractor/Flasher','Fly/MeatColor','Species','Length_in','Weight_lb','KeptOrReleased','HookLocation','Landed_YN','FightTime_min','Notes','HasPhoto']; const lines=[toCsvRow(h)]; const hdr=t.header||{};
+    for(const e of t.entries){
+      const parts=(e.gps||'').split(',');
+      const lat=(parts[0] && parts[0].trim())||'';
+      const lon=(parts[1] && parts[1].trim())||'';
+      const row=[
+        hdr.date||'',             // TripDate
+        e.time||'',               // Time
+        e.ts||'',                 // Timestamp
+        hdr.port||'',             // PortArea
+        lat||'',                  // GPS_Lat
+        lon||'',                  // GPS_Lon
+        '',                       // Waypoint
+        e.waterDepth||'',         // WaterDepth_ft (inserted)
+        hdr.surfaceTemp||'',      // SurfaceTemp_F
+        e.platform||'',           // Platform
+        '',                       // RodPosition
+        e.lineType||'',           // LineType
+        e.lineStrength||'',       // LineStrength_lb
+        e.lineOut||'',            // LineLengthOut_ft
+        e.dipsySize||'',          // DipsySize
+        e.dipsySetting||'',       // DipsySetting
+        e.ballWeight||'',         // RiggerBallWeight_lb
+        e.ballDepth||'',          // RiggerBallDepth_ft
+        e.targetDepth||'',        // TargetDepth_ft
+        e.strikeDepthSeen||'',    // StrikeDepthSeen_ft
+        e.speedBall||'',          // SpeedAtBall_mph
+        e.sog||'',                // SOG_mph
+        e.trollDir||'',           // TrollDirection
+        e.lureType||'',           // LureType
+        e.lureBrand||'',          // LureBrand
+        '',                       // LureModel
+        e.lureSize||'',           // LureSize
+        e.lureColor||'',          // LureColor
+        e.leaderLen||'',          // LeaderLength_ft
+        e.attractor||'',          // Attractor/Flasher
+        e.flyMeat||'',            // Fly/MeatColor
+        e.species||'',            // Species
+        e.lengthIn||'',           // Length_in
+        e.weightLb||'',           // Weight_lb
+        e.keptRel||'',            // KeptOrReleased
+        e.hookLoc||'',            // HookLocation
+        e.landed||'',             // Landed_YN
+        '',                       // FightTime_min
+        e.notes||'',              // Notes
+        e.photo?'Y':'N'           // HasPhoto
+      ];
+      lines.push(toCsvRow(row));
+    }
+    download('catches_'+(hdr.date||'trip')+'.csv', lines.join('\n'));
+  }
   async function exportJson(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos={}; for(const e of t.entries){ if(e.photo){ photos[e.id]=await getPhoto(e.id); } } const out=Object.assign({}, t, { photos: photos, exportVersion:2 }); const fname='trip_'+(((t.header && t.header.date) || id))+'.json'; download(fname, JSON.stringify(out,null,2)); }
   async function exportAlbum(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos=[]; for(const e of t.entries){ if(e.photo){ photos.push({id:e.id, time:e.time, species:e.species, lure:[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '), durl: await getPhoto(e.id)}); } } const tripDate = (t.header && t.header.date) || 'trip'; const html='<!doctype html><meta charset="utf-8"><title>Album '+tripDate+'</title><style>body{font-family:system-ui;background:#0e131b;color:#e8eefb;margin:0;padding:16px}h1{font-size:20px} .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} figure{margin:0;background:#151b26;border:1px solid #243349;border-radius:12px;overflow:hidden} img{width:100%;height:200px;object-fit:cover;display:block} figcaption{padding:8px 10px;font-size:12px;color:#b9c9e3} </style><h1>Trip '+tripDate+'</h1><div class="g">'+photos.map(p=>'<figure><img src="'+p.durl+'"><figcaption>'+ (p.time||'') +' • '+ (p.species||'') +'<br>'+ (p.lure||'') +'</figcaption></figure>').join('')+'</div>'; download('album_'+tripDate+'.html', html); }
     
