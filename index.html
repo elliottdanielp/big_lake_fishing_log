@@ -651,7 +651,7 @@
       } catch (err) { alert('Google sign-in failed: ' + err.message); }
     }
 
-    function buildRowsForTrip(trip) {
+  function buildRowsForTrip(trip, photoUrlMap={}) {
       const hdr = trip.header || {};
       const rows = [];
       // header row describing columns (optional) — uncomment to push as first row
@@ -659,7 +659,7 @@
       for (const e of trip.entries) {
         const [lat, lon] = (e.gps || '').split(',').map(s => s && s.trim());
         rows.push([
-          hdr.date || '', e.time || '', hdr.port || '', lat || '', lon || '', e.waterDepth || '', hdr.surfaceTemp || '', hdr.thermocline || '', e.platform || '', [e.lureType, e.lureBrand, e.lureColor].filter(Boolean).join(' • '), e.species || '', e.lengthIn || '', e.weightLb || '', e.keptRel || '', e.landed || '', e.notes || '', e.photo ? 'Y' : 'N'
+          hdr.date || '', e.time || '', hdr.port || '', lat || '', lon || '', e.waterDepth || '', hdr.surfaceTemp || '', hdr.thermocline || '', e.platform || '', [e.lureType, e.lureBrand, e.lureColor].filter(Boolean).join(' • '), e.species || '', e.lengthIn || '', e.weightLb || '', e.keptRel || '', e.landed || '', e.notes || '', e.photo ? 'Y' : 'N', photoUrlMap[e.id] || ''
         ]);
       }
       return rows;
@@ -674,7 +674,7 @@
         const t = state.trips[id]; if(!t) return alert('Trip not found');
         const rows = buildRowsForTrip(t);
   // Ensure the sheet has a header row first for readability
-  const SHEET_HEADERS = ['TripDate','Time','Port','GPS_Lat','GPS_Lon','WaterDepth_ft','SurfaceTemp_F','Thermocline_ft','Platform','Lure','Species','Length_in','Weight_lb','Kept','Landed','Notes','HasPhoto'];
+  const SHEET_HEADERS = ['TripDate','Time','Port','GPS_Lat','GPS_Lon','WaterDepth_ft','SurfaceTemp_F','Thermocline_ft','Platform','Lure','Species','Length_in','Weight_lb','Kept','Landed','Notes','HasPhoto','PhotoURL'];
   try{ await ensureSheetHasHeader(sheetId, 'Sheet1', SHEET_HEADERS); }catch(e){ console.warn('ensure header failed', e); }
         // Append rows to first sheet (Sheet1) by default
         const range = 'Sheet1!A1';
@@ -694,10 +694,53 @@
         const btn = $('#uploadSheet'); badge = document.createElement('span'); badge.id='uploadPending'; badge.className='badge-count'; badge.style.marginLeft='8px'; btn.parentNode.insertBefore(badge, btn.nextSibling); }
       badge.textContent = q.length; if(q.length===0) badge.style.display='none'; else badge.style.display='inline-block'; }
 
-    async function flushUploadQueue(){ const q = loadUploadQueue(); if(!q.length) return; if(!navigator.onLine) return; try{ await ensureGapi(); const GoogleAuth = gapi.auth2.getAuthInstance(); if(!GoogleAuth.isSignedIn.get()) { console.log('Not signed in; will not flush'); return; } }catch(e){ console.warn('gapi not ready', e); return; }
+    // Upload photos to Drive and return map { entryId: publicUrl }
+    async function uploadPhotosForTrip(trip){ const photoMap = {}; for(const e of trip.entries){ if(e.photo){ try{ const data = await getPhoto(e.id); if(data){ const fname = `trip_${trip.id}_${e.id}.jpg`; const url = await uploadPhotoToDrive(data, fname); photoMap[e.id]=url; } }catch(err){ console.warn('photo upload failed', e.id, err); } } } return photoMap; }
+
+    // Upload a base64 dataURL to Drive and return a file open link (requires drive.file scope)
+    async function uploadPhotoToDrive(dataUrl, filename){ try{
+      // Convert dataURL to blob
+      const res = await fetch(dataUrl); const blob = await res.blob(); const metadata = { name: filename, mimeType: blob.type };
+      const accessToken = gapi.auth.getToken().access_token;
+      // multipart upload
+      const boundary = '-------BLFL' + Math.random().toString(36).slice(2);
+      const delimiter = `\r\n--${boundary}\r\n`;
+      const close = `\r\n--${boundary}--`;
+      const reader = await new Response(blob).arrayBuffer();
+      const base64Data = btoa(String.fromCharCode.apply(null, new Uint8Array(reader)));
+      const metadataPart = `Content-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}`;
+      const multipartRequestBody = delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) + delimiter + `Content-Type: ${blob.type}\r\nContent-Transfer-Encoding: base64\r\n\r\n` + base64Data + close;
+      const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method:'POST', headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'multipart/related; boundary="' + boundary + '"' }, body: multipartRequestBody });
+      if(!resp.ok) throw new Error('Drive upload HTTP ' + resp.status);
+      const j = await resp.json();
+      // Make file shareable (anyone with link) — create permission
+      await fetch(`https://www.googleapis.com/drive/v3/files/${j.id}/permissions`, { method:'POST', headers:{ 'Authorization':'Bearer '+accessToken, 'Content-Type':'application/json' }, body: JSON.stringify({ role:'reader', type:'anyone' }) });
+      // Return webViewLink if present else construct URL
+      return j.webViewLink || `https://drive.google.com/file/d/${j.id}/view`;
+    }catch(err){ console.warn('uploadPhotoToDrive error', err); return ''; } }
+
+    async function flushUploadQueue(){
+      const q = loadUploadQueue(); if(!q.length) return; if(!navigator.onLine) return;
+      try{ await ensureGapi(); const GoogleAuth = gapi.auth2.getAuthInstance(); if(!GoogleAuth.isSignedIn.get()) { console.log('Not signed in; will not flush'); return; } }catch(e){ console.warn('gapi not ready', e); return; }
       // attempt to send until empty or error
-      while(true){ const item = loadUploadQueue()[0]; if(!item) break; try{ const resp = await gapi.client.sheets.spreadsheets.values.append({ spreadsheetId: item.sheetId, range: item.range||'Sheet1!A1', valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS', resource: { values: item.rows } }); if(resp.status===200){ // remove head
-              queuePop(); toast('Uploaded queued trip ('+ (item.rows.length) +' rows)'); continue; } else { console.warn('append returned', resp.status); break; } }catch(err){ console.warn('flush failed', err); break; } }
+      while(true){
+        const item = loadUploadQueue()[0];
+        if(!item) break;
+        try{
+          // load trip fresh
+          const trip = state.trips[item.tripId];
+          if(!trip){ queuePop(); continue; }
+          // upload photos (if any) and build rows including photo URLs
+          const photoMap = await uploadPhotosForTrip(trip);
+          const rows = buildRowsForTrip(trip, photoMap);
+          // ensure header
+          const SHEET_HEADERS = ['TripDate','Time','Port','GPS_Lat','GPS_Lon','WaterDepth_ft','SurfaceTemp_F','Thermocline_ft','Platform','Lure','Species','Length_in','Weight_lb','Kept','Landed','Notes','HasPhoto','PhotoURL'];
+          try{ await ensureSheetHasHeader(item.sheetId, 'Sheet1', SHEET_HEADERS); }catch(e){ console.warn('ensure header failed', e); }
+          const resp = await gapi.client.sheets.spreadsheets.values.append({ spreadsheetId: item.sheetId, range: item.range||'Sheet1!A1', valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS', resource: { values: rows } });
+          if(resp.status===200){ queuePop(); toast('Uploaded queued trip ('+ (rows.length) +' rows)'); continue; }
+          else { console.warn('append returned', resp.status); break; }
+        }catch(err){ console.warn('flush failed', err); break; }
+      }
     }
 
     // Ensure the sheet has a header row (writes headers to A1 if sheet is empty or headers missing)
@@ -717,7 +760,7 @@
 
     // Wire upload button to enqueue + attempt flush
     document.getElementById('uploadSheet').addEventListener('click', ()=>{
-      const id = currentTripId(); if(!id) return alert('No trip selected'); const sheetId = (document.getElementById('sheetId').value || '').trim(); if(!sheetId) return alert('Paste a Google Spreadsheet ID first'); const t = state.trips[id]; const rows = buildRowsForTrip(t); const item = { ts: Date.now(), tripId: id, sheetId, rows, range: 'Sheet1!A1' }; queuePush(item); toast('Queued upload ('+rows.length+' rows)'); // try to flush immediately
+      const id = currentTripId(); if(!id) return alert('No trip selected'); const sheetId = (document.getElementById('sheetId').value || '').trim(); if(!sheetId) return alert('Paste a Google Spreadsheet ID first'); const item = { ts: Date.now(), tripId: id, sheetId, range: 'Sheet1!A1' }; queuePush(item); toast('Queued upload'); // try to flush immediately
       flushUploadQueue();
     });
     document.getElementById('authGapi').addEventListener('click', signInGapi);
