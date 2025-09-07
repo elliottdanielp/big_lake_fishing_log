@@ -12,8 +12,15 @@
     :root { --bg:#0e131b; --card:#151b26; --ink:#e8eefb; --muted:#9fb0c8; --accent:#52a7ff; --accent-2:#2ed0a2; --danger:#ff6b6b; --warning:#ffd166; --good:#06d6a0; --shadow:rgba(0,0,0,.35); --radius:18px; }
     html, body { height:100%; } body { margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,sans-serif; background:var(--bg); color:var(--ink); }
     .wrap { max-width: 880px; margin:0 auto; padding: 8px; }
-    header { position: sticky; top:0; z-index: 20; background: linear-gradient(180deg, rgba(14,19,27,0.98), rgba(14,19,27,0.86)); backdrop-filter: blur(6px); border-bottom: 1px solid #1f2a3a; }
-    .bar { display:flex; gap:8px; align-items:center; padding: 10px 8px; } .title { font-weight:700; letter-spacing:.3px; font-size:22px; }
+  /* Brand header: full-width bar with rounded bottom and centered title + tagline */
+  header { position: sticky; top:0; z-index: 30; background: linear-gradient(180deg,#0b2944,#0e1a2a); backdrop-filter: blur(6px); border-bottom: none; border-radius: 0 0 14px 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.45); }
+  .bar { display:flex; gap:8px; align-items:center; padding: 14px 12px; }
+  .logo { width:56px; display:flex; align-items:center; justify-content:center; margin-right:8px; }
+  .logo svg { width:48px; height:48px; display:block; }
+  .title-container { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; width:100%; }
+  .title { font-weight:900; letter-spacing:0.6px; font-size:26px; color: #eaf6ff; text-shadow: 0 3px 14px rgba(0,0,0,0.5); }
+  .tagline { margin-top:4px; font-size:13px; color:var(--accent-2); opacity:0.95; font-weight:700; letter-spacing:0.6px; animation: fadeUp .85s ease both; }
+  @keyframes fadeUp{ from{ opacity:0; transform:translateY(6px);} to{ opacity:1; transform:translateY(0);} }
     .tabs { display:flex; gap:8px; overflow:auto; padding: 6px 8px 12px; }
     .tab-btn { flex:1; text-align:center; border:1px solid #26364c; background:#111622; color:var(--muted); padding:16px 0; border-radius:16px; font-weight:700; font-size:18px; }
     .tab-btn.active { color:#fff; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(82,167,255,.15) inset; }
@@ -51,7 +58,7 @@
   #toast button { width:auto; padding:10px 16px; margin-left:14px; font-size:18px; }
   /* Mobile-specific layout tweaks for smaller phones (iPhone) */
   @media(max-width:420px){
-    input, select, textarea, button { padding:12px; font-size:16px; border-radius:12px; }
+  input, select, textarea, button { padding:12px; font-size:16px; border-radius:12px; }
     .tab-btn { font-size:16px; padding:12px 8px; border-radius:14px; }
     .grid.cols-2, .grid.cols-3 { grid-template-columns: 1fr !important; }
     .row { flex-direction:column; }
@@ -59,6 +66,13 @@
     .section-title { font-size:20px; }
     .tabs { gap:6px; padding:6px 6px 8px; }
     #toast { font-size:16px; padding:12px 18px; bottom:18px; }
+  /* Tighter header spacing on small phones */
+  header { border-radius: 0 0 10px 10px; }
+  .bar { padding:10px 8px; }
+  .title { font-size:18px; }
+  .tagline { font-size:12px; }
+  .logo { width:40px; }
+  .logo svg { width:34px; height:34px; }
   }
   /* iPhone 15 Pro specific (approx CSS device width 393px) */
   @media(max-width:400px){
@@ -78,11 +92,27 @@
 <body>
   <header>
     <div class="bar">
-      <div style="flex:1">
-        <div class="title">Big Lake Fishing Log</div>
-        
+      <div class="logo" aria-hidden="true">
+        <!-- simple fish + wave mark inspired by provided logo (kept lightweight) -->
+        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="logo">
+          <defs>
+            <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#3aa0ff"/>
+              <stop offset="100%" stop-color="#165a9e"/>
+            </linearGradient>
+          </defs>
+          <path d="M8 36c6-10 18-12 28-10 6 1 12 6 18 8-6 2-12 6-20 6-10 0-18-6-26-4z" fill="url(#g1)" opacity="0.95"/>
+          <path d="M36 18c-6 2-10 8-16 10 6 2 10 8 16 10 6-2 10-8 16-10-6-2-10-8-16-10z" fill="#0b3a67"/>
+          <circle cx="38" cy="22" r="2" fill="#aee8ff"/>
+        </svg>
       </div>
-      <button class="btn secondary" id="addToHome" title="How to add to Home Screen">Add to Home</button>
+      <div style="flex:1">
+        <div class="title-container">
+          <div class="title">Big Lake Fishing Log</div>
+          <div class="tagline">Log.Learn.Land More.</div>
+        </div>
+      </div>
+      <!-- Add to Home moved to bottom for unobtrusive placement -->
     </div>
     <div class="tabs" role="tablist">
       <button class="tab-btn active" data-tab="setup">Trip Setup</button>
@@ -306,6 +336,10 @@
       </div>
     </section>
   </main>
+  <div style="max-width:880px;margin:14px auto 6px;padding:6px 12px;text-align:center;">
+    <button class="btn secondary" id="addToHome" title="How to add to Home Screen">Add to Home</button>
+    <div class="muted" style="margin-top:8px;font-size:14px;">Tip: On iPhone use Safari ▸ Share ▸ Add to Home Screen</div>
+  </div>
   <div class="footer">© You. Fish hard, log smart.</div>
   <div id="lightbox" class="lightbox hide" role="dialog" aria-modal="true">
     <img id="lightboxImg" alt="photo" />
