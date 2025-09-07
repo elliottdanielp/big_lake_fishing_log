@@ -257,20 +257,59 @@
   </div>
   <div id="toast"></div>
   <script>
-    // Manual override button clears and enables all weather fields for manual entry
-    $('#manualOverride').addEventListener('click', () => {
-      ['airTemp','surfaceTemp','wind','waves','clouds'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.value = '';
-          el.disabled = false;
-        }
-      });
-      toast('Weather fields cleared for manual entry');
-    });
+    // Ensure all event listeners are attached after DOM is loaded
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.from(document.querySelectorAll(sel));
     const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+    window.addEventListener('DOMContentLoaded', () => {
+      // Manual override button clears and enables all weather fields for manual entry
+      $('#manualOverride')?.addEventListener('click', () => {
+        ['airTemp','surfaceTemp','wind','waves','clouds'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.value = '';
+            el.disabled = false;
+          }
+        });
+        toast('Weather fields cleared for manual entry');
+      });
+      // All other event listeners below (move all listeners inside this block)
+      $('#fetchConditions')?.addEventListener('click', async () => {
+        // ...existing code...
+      });
+      $('#saveTrip')?.addEventListener('click', saveHeader);
+      $('#newTrip')?.addEventListener('click', () => {
+        // ...existing code...
+      });
+      $('#tripSelect')?.addEventListener('change', () => {
+        // ...existing code...
+      });
+      $('#platform')?.addEventListener('change', () => {
+        // ...existing code...
+      });
+      $('#nowBtn')?.addEventListener('click', setNow);
+      $('#getGps')?.addEventListener('click', () => {
+        // ...existing code...
+      });
+      $('#saveLists')?.addEventListener('click', textareaToLists);
+      $('#restoreDefaults')?.addEventListener('click', () => {
+        // ...existing code...
+      });
+      $('#addEntry')?.addEventListener('click', () => addOrUpdateEntry(false));
+      $('#forceSave')?.addEventListener('click', () => addOrUpdateEntry(true));
+      $('#cancelEdit')?.addEventListener('click', () => { setEditing(false); clearCatchForm(false); });
+      $('#dupLast')?.addEventListener('click', () => {
+        // ...existing code...
+      });
+      $('#resetForm')?.addEventListener('click', clearCatchForm);
+      $('#clearPhoto')?.addEventListener('click', () => {
+        // ...existing code...
+      });
+      $('#lightboxClose')?.onclick = () => $('#lightbox').classList.add('hide');
+      $('#lightbox')?.onclick = (e) => { if(e.target.id==='lightbox') $('#lightbox').classList.add('hide'); };
+      $('#exportCsv')?.addEventListener('click', exportCsv);
+      // Add any other button listeners here as needed
+    });
     // --- Google Drive / Sheets Export ---
     // You must set up a Google Cloud project and OAuth credentials for this to work.
     // See https://developers.google.com/drive/api/v3/quickstart/js and
