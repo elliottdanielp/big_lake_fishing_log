@@ -1,8 +1,26 @@
 [
   {
-    "id": "SAMPLE1",
-    "name": "Sample Lake Michigan Buoy",
-    "lat": 43.025,
-    "lon": -86.250
+    "id": "45161",
+    "name": "NDBC 45161 (near Holland, MI)",
+    "lat": 42.79,
+    "lon": -86.10
+  },
+  {
+    "id": "45162",
+    "name": "NDBC 45162 (Muskegon area)",
+    "lat": 43.23,
+    "lon": -86.25
+  },
+  {
+    "id": "45160",
+    "name": "NDBC 45160 (Grand Haven)",
+    "lat": 43.06,
+    "lon": -86.22
+  },
+  {
+    "id": "45163",
+    "name": "NDBC 45163 (Saugatuck)",
+    "lat": 42.65,
+    "lon": -86.15
   }
 ]
