@@ -274,6 +274,11 @@
           <input id="marineJsonUrl" placeholder="https://example.com/marine.json" />
           <div class="hint">If you host a simple JSON file with fields { sstC: <Celsius>, waveM: <meters> } we will fetch it (useful at the dock before heading out).</div>
         </div>
+        <div style="margin-top:12px">
+          <label for="stationJsonTemplate">Optional: Station JSON template (public)</label>
+          <input id="stationJsonTemplate" placeholder="https://yourhost.example/stations/{station}.json or raw GitHub URL" />
+          <div class="hint">You can paste a GitHub Pages or raw URL template. Use <code>{station}</code> to substitute station id. Example: <code>https://raw.githubusercontent.com/elliottdanielp/big_lake_fishing_log/main/sample-ndbc.json</code></div>
+        </div>
         <div class="row" style="margin-top:10px">
           <button class="btn good" id="savePrefs" type="button">Save preferences</button>
         </div>
@@ -698,7 +703,7 @@
       Object.values(state.trips||{}).forEach(trip=>{ (trip.entries||[]).forEach(e=>{ if(!e.ts){ const ts=computeTs(trip.header, e.time); e.ts=ts; } }); });
       save(); }
   function initPrefs(){ $('#prefQuickDefault').checked = !!(state.settings && state.settings.quickMode); $('#prefSticky').checked = ((state.settings && state.settings.sticky) !== false); }
-  function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; save(); toast('Preferences saved'); applyQuickMode(); }
+  function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; const st = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : ''; state.settings.stationJsonTemplate = st; save(); toast('Preferences saved'); applyQuickMode(); }
   attach('#savePrefs','click', savePrefs);
     function applyQuickMode(){ const quick = state.settings.quickMode; $('#quickToggle').textContent = 'Quick Mode: '+(quick?'On':'Off'); const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth','keptRel','landedYN']); $$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } }); }
   attach('#quickToggle','click', ()=>{ state.settings.quickMode=!state.settings.quickMode; save(); applyQuickMode(); });
@@ -706,7 +711,8 @@
     function hideToast(){ const el=$('#toast'); el.style.display='none'; }
     function showUndo(){ toast('Entry deleted', true); }
     function init(){ fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); // load marine JSON URL into the settings input
-        try{ const el = $('#marineJsonUrl'); if(el) el.value = (state.settings && state.settings.marineJsonUrl) || ''; }catch(e){}
+    try{ const el = $('#marineJsonUrl'); if(el) el.value = (state.settings && state.settings.marineJsonUrl) || ''; }catch(e){}
+    try{ const st = $('#stationJsonTemplate'); if(st) st.value = (state.settings && state.settings.stationJsonTemplate) || 'https://raw.githubusercontent.com/elliottdanielp/big_lake_fishing_log/main/sample-ndbc.json'; }catch(e){}
         // load stations list (for nearest NDBC station lookup)
         try{
           fetch('stations.json', { cache: 'no-store' }).then(r=>r.json()).then(js=>{ window.__stations = js || [] }).catch(()=>{ window.__stations = []; });
@@ -722,6 +728,29 @@
   // Use guarded attaches for photo input, clear photo and downloadConditions
   attach('#photoInput', 'change', async () => { const input = document.querySelector('#photoInput'); const f = (input && input.files && input.files[0]); if(!f){ pendingPhotoDataURL=''; if(photoPreview) { photoPreview.classList.add('hide'); photoPreview.src=''; } return; } try{ pendingPhotoDataURL = await fileToDataURLResized(f); if(photoPreview){ photoPreview.src = pendingPhotoDataURL; photoPreview.classList.remove('hide'); } } catch(err){ alert('Photo error: '+err.message); } });
   attach('#clearPhoto', 'click', ()=>{ pendingPhotoDataURL=''; const input = document.querySelector('#photoInput'); if(input) input.value=''; if(photoPreview){ photoPreview.classList.add('hide'); photoPreview.src=''; } });
+  // Test station template fetch button (settings area)
+  attach('#testStationJson','click', async ()=>{
+    try{
+      const tpl = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : '';
+      if(!tpl) return alert('Set station JSON template first in Preferences');
+      // pick nearest station if available
+      const stations = window.__stations || [];
+      let nearest = stations[0] || null;
+      if(stations.length && ('geolocation' in navigator)){
+        navigator.geolocation.getCurrentPosition(async pos=>{
+          const lat = pos.coords.latitude, lon = pos.coords.longitude;
+          const toR = n => n * Math.PI / 180;
+          const hav = (a,b)=>{ const R=6371; const dLat=toR(b.lat-a.lat); const dLon=toR(b.lon-a.lon); const la=toR(a.lat), lb=toR(b.lat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
+          let best=null, bestD=Infinity; stations.forEach(s=>{ const d = hav({lat,lon}, {lat:s.lat, lon:s.lon}); if(d<bestD){ bestD=d; best=s; } }); if(best) nearest = best;
+          const url = tpl.replace('{station}', encodeURIComponent(nearest.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+          const r = await fetch(url, { cache: 'no-store' }); if(!r.ok) return alert('Fetch failed: '+r.status); const js = await r.json(); alert('Fetched OK: ' + JSON.stringify(js));
+        }, err=>{ alert('Geolocation failed: '+err.message); });
+      } else {
+        // no geolocation/stations - try template without replacement
+        const url = tpl.replace('{station}', encodeURIComponent(nearest && nearest.id || '')); const r = await fetch(url, { cache: 'no-store' }); if(!r.ok) return alert('Fetch failed: '+r.status); const js = await r.json(); alert('Fetched OK: ' + JSON.stringify(js));
+      }
+    }catch(e){ alert('Test failed: '+e.message); }
+  });
   attach('#downloadConditions','click', ()=>{ if($('#fetchConditions')) $('#fetchConditions').click(); });
     // Register service worker for offline support (if available)
     if ('serviceWorker' in navigator) {
