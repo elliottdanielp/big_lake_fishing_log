@@ -71,6 +71,8 @@
   }
   /* global safety to avoid horizontal scrolling caused by shadows/rounded inputs */
   html,body{ overflow-x:hidden; }
+  /* highlight for auto-filled fields */
+  .auto-filled { outline: 2px solid var(--accent-2); box-shadow: 0 10px 30px rgba(46,208,162,0.12); transition: box-shadow .35s, outline .35s; }
   </style>
 </head>
 <body>
@@ -387,7 +389,27 @@
                     let best=null, bestD=Infinity; stations.forEach(s=>{ const d = hav({lat: latitude, lon: longitude}, {lat:s.lat, lon:s.lon}); if(d<bestD){ bestD=d; best=s; } }); if(best) nearest = Object.assign({}, best, {distKm: bestD});
                   }
                 }catch(e){ console.warn('stations lookup failed', e); }
-                if(nearest){ const cs = document.getElementById('conditionsStation'); if(cs) cs.textContent = nearest.name + ' • ' + (nearest.distKm? nearest.distKm.toFixed(1)+' km':''); }
+                if(nearest){ 
+                  const cs = document.getElementById('conditionsStation'); 
+                  if(cs) cs.textContent = nearest.name + ' • ' + (nearest.distKm? nearest.distKm.toFixed(1)+' km':''); 
+                  // Auto-fill Port/Area from nearest station if port field empty
+                  try{
+                    const portEl = document.getElementById('port');
+                    if(portEl && !portEl.value){
+                      const portVal = nearest.name + (nearest.distKm? (' • '+nearest.distKm.toFixed(1)+' km') : '');
+                      portEl.value = portVal;
+                      if(cur && state.trips[cur]) state.trips[cur].header.port = portVal;
+                    }
+                    // Auto-fill date and start time if empty
+                    const dateEl = document.getElementById('tripDate');
+                    const timeEl = document.getElementById('startTime');
+                    const now = new Date();
+                    if(dateEl && !dateEl.value){ const localDate = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0'); dateEl.value = localDate; if(cur && state.trips[cur]) state.trips[cur].header.date = localDate; }
+                    if(timeEl && !timeEl.value){ const t = now.toTimeString().slice(0,5); timeEl.value = t; if(cur && state.trips[cur]) state.trips[cur].header.startTime = t; }
+                    // persist the header after auto-filling
+                    save();
+                  }catch(e){ console.warn('auto-fill port/date failed', e); }
+                }
 
                 // try station-specific JSON template if configured
                 let marine = null;
@@ -425,17 +447,29 @@
                     if(wEl) wEl.value = waveFt;
                     if(cur && state.trips[cur]) state.trips[cur].header.waves = String(waveFt);
                   }
-                  // persist source metadata if available
+                  // persist source metadata, snapshot for undo, show human timestamp and highlight fields
                   try{
                     const ms = document.getElementById('marineSource');
                     const stationId = (marine && marine.station) ? String(marine.station) : (nearest && nearest.id ? String(nearest.id) : '');
                     const src = stationId ? `buoy ${stationId}` : 'autofill';
                     if(cur && state.trips[cur]){
+                      // snapshot previous header for undo
+                      pendingMarineUndo = { id: cur, prevHeader: Object.assign({}, state.trips[cur].header || {}) };
                       state.trips[cur].header.marineSource = src;
                       state.trips[cur].header.marineFetchedAt = Date.now();
                       if(stationId) state.trips[cur].header.marineStation = stationId;
                     }
-                    if(ms) ms.textContent = 'Source: Auto-filled from ' + src;
+                    if(ms){
+                      const d = new Date(state.trips[cur].header.marineFetchedAt);
+                      ms.textContent = 'Source: Auto-filled from ' + src + ' • ' + d.toLocaleString();
+                    }
+                    // highlight the auto-filled fields briefly
+                    try{ const sEl = document.getElementById('surfaceTemp'); const wEl = document.getElementById('waves'); if(sEl){ sEl.classList.add('auto-filled'); setTimeout(()=>sEl.classList.remove('auto-filled'), 3000); } if(wEl){ wEl.classList.add('auto-filled'); setTimeout(()=>wEl.classList.remove('auto-filled'), 3000); } }catch(e){}
+                    // show undo in toast
+                    toast('Conditions cached (local) — values auto-filled. <button class="btn secondary" id="undoMarineBtn">Undo</button>', true);
+                    setTimeout(hideToast, 8000);
+                    // wire undo button once shown
+                    setTimeout(()=>{ const b = document.getElementById('undoMarineBtn'); if(b) b.addEventListener('click', ()=>{ if(pendingMarineUndo && pendingMarineUndo.id){ const id = pendingMarineUndo.id; state.trips[id].header = pendingMarineUndo.prevHeader || {}; save(); loadHeaderIntoForm(); const ms2 = document.getElementById('marineSource'); if(ms2) ms2.textContent = 'Source: —'; pendingMarineUndo = null; toast('Auto-fill undone'); setTimeout(hideToast, 1600); } }); }, 50);
                   }catch(e){ console.warn('failed to persist marine source', e); }
                 }
               }catch(e){ console.warn('marine fetch error', e); }
@@ -676,8 +710,9 @@
       }
       return { sstC: sst, waveM: wave };
     }
-    const LS_KEY = 'blfl.state.v2';
-    let state = load() || { trips: {}, lists: defaults(), dataVersion:3, settings:{quickMode:false, sticky:true} };
+  const LS_KEY = 'blfl.state.v2';
+  let state = load() || { trips: {}, lists: defaults(), dataVersion:3, settings:{quickMode:false, sticky:true} };
+  let pendingMarineUndo = null;
     function defaults(){ return { Platform:["Downrigger","Dipsy","Copper","Leadcore","Planer","Flatline"], LineType:["Wire","Braid","Mono","Fluorocarbon","Copper","Leadcore"], LureType:["Spoon","Plug","Flasher/Fly","Meat Rig","Spin-n-Glow","Other"], Species:["Chinook (King)","Coho","Steelhead","Lake Trout","Brown Trout","Other"], TrollDirection:["N","NE","E","SE","S","SW","W","NW"], Clouds:["Clear","Partly","Overcast","Fog"], HookLocation:["Jaw","Corner","Tongue","Outside"] }; }
   function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
     function load(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)); }catch(e){ return null; } }
