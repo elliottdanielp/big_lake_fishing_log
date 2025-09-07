@@ -47,6 +47,17 @@
   .spark { display:inline-block; background:var(--accent); height:14px; margin-right:4px; border-radius:4px; }
   #toast { position:fixed; left:50%; transform:translateX(-50%); bottom:24px; background:#142032; color:#fff; padding:16px 24px; border:1.5px solid #21405c; border-radius:18px; box-shadow:0 6px 16px rgba(0,0,0,.4); display:none; z-index:99999; font-size:18px; }
   #toast button { width:auto; padding:10px 16px; margin-left:14px; font-size:18px; }
+  /* Mobile-specific layout tweaks for smaller phones (iPhone) */
+  @media(max-width:420px){
+    input, select, textarea, button { padding:12px; font-size:16px; border-radius:12px; }
+    .tab-btn { font-size:16px; padding:12px 8px; border-radius:14px; }
+    .grid.cols-2, .grid.cols-3 { grid-template-columns: 1fr !important; }
+    .row { flex-direction:column; }
+    .card { padding:14px; }
+    .section-title { font-size:20px; }
+    .tabs { gap:6px; padding:6px 6px 8px; }
+    #toast { font-size:16px; padding:12px 18px; bottom:18px; }
+  }
   </style>
 </head>
 <body>
@@ -286,21 +297,86 @@
             toast('Geolocation unavailable');
             return;
           }
-          navigator.geolocation.getCurrentPosition(pos => {
+          navigator.geolocation.getCurrentPosition(async pos => {
             const { latitude, longitude } = pos.coords;
-            // store coords in the header GPS field for reference
+            // store coords in the header for reference and populate GPS field on the catch form
             const cur = currentTripId();
+            const lat = Number(latitude).toFixed(5);
+            const lon = Number(longitude).toFixed(5);
             if (cur && state.trips[cur]) {
               state.trips[cur].header = state.trips[cur].header || {};
-              state.trips[cur].header.lastLat = latitude.toFixed(5);
-              state.trips[cur].header.lastLon = longitude.toFixed(5);
+              state.trips[cur].header.lastLat = lat;
+              state.trips[cur].header.lastLon = lon;
+              state.trips[cur].header.lastFetchedAt = Date.now();
               save();
             }
             const el = document.getElementById('conditionsCached');
-            if (el) el.textContent = new Date().toLocaleString();
+            if (el) el.textContent = new Date().toLocaleString() + ' • ' + lat + ', ' + lon;
+            // also prefill the GPS input in the catch form so new entries inherit the location
+            const gpsInput = document.getElementById('gps');
+            if (gpsInput && !gpsInput.value) gpsInput.value = lat + ', ' + lon;
+            // Fetch weather via Open-Meteo to populate airTemp, wind and clouds (best-effort)
+            try{
+              const wm = await fetchOpenMeteo(latitude, longitude);
+              if(wm && typeof wm.tempC === 'number'){
+                // convert to °F for the UI
+                const f = Math.round((wm.tempC * 9/5) + 32);
+                const airEl = document.getElementById('airTemp');
+                if(airEl) airEl.value = f;
+                // store
+                if(cur && state.trips[cur]) state.trips[cur].header.airTemp = String(f);
+              }
+              if(wm && typeof wm.windKmh === 'number'){
+                const mph = Math.round(wm.windKmh / 1.609);
+                const dir = (typeof wm.windDeg==='number') ? degToCompass(wm.windDeg) : '';
+                const wstr = dir ? `${dir} ${mph} mph` : `${mph} mph`;
+                const windEl = document.getElementById('wind');
+                if(windEl) windEl.value = wstr;
+                if(cur && state.trips[cur]) state.trips[cur].header.wind = wstr;
+              }
+              if(wm && typeof wm.cloudPct === 'number'){
+                // map cloud % to nearest option in #clouds select if possible
+                const cloudsEl = document.getElementById('clouds');
+                if(cloudsEl){
+                  const pct = wm.cloudPct;
+                  // simple mapping: 0-10 Clear, 11-50 Partly, 51-100 Overcast
+                  let opt = '';
+                  if(pct<=10) opt = 'Clear'; else if(pct<=50) opt = 'Partly'; else opt = 'Overcast';
+                  // pick matching option if present
+                  const found = Array.from(cloudsEl.options).find(o=>o.text.toLowerCase().startsWith(opt.toLowerCase()));
+                  if(found) cloudsEl.value = found.value || found.text;
+                }
+                if(cur && state.trips[cur]) state.trips[cur].header.clouds = String(wm.cloudPct);
+              }
+              // attempt to fetch marine / surface data (sea surface temp, waves)
+              try{
+                const marine = await fetchMarineNearest(latitude, longitude);
+                if(marine){
+                  if(typeof marine.sstC === 'number'){
+                    const sstF = Math.round((marine.sstC * 9/5) + 32);
+                    const sEl = document.getElementById('surfaceTemp');
+                    if(sEl) sEl.value = sstF;
+                    if(cur && state.trips[cur]) state.trips[cur].header.surfaceTemp = String(sstF);
+                  }
+                  if(typeof marine.waveM === 'number'){
+                    // convert meters to feet
+                    const waveFt = (marine.waveM * 3.28084).toFixed(1);
+                    const wEl = document.getElementById('waves');
+                    if(wEl) wEl.value = waveFt;
+                    if(cur && state.trips[cur]) state.trips[cur].header.waves = String(waveFt);
+                  }
+                }
+              }catch(e){ console.warn('marine fetch error', e); }
+              save();
+            }catch(err){
+              console.warn('Weather fetch failed', err);
+            }
             toast('Conditions cached (local)');
+            // auto-hide the toast quickly so it doesn't obscure form fields on small screens
+            setTimeout(hideToast, 1600);
           }, err => {
             toast('Could not get location: ' + (err && err.message));
+            setTimeout(hideToast, 2000);
           }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 });
         } catch (err) { console.warn('fetchConditions error', err); toast('Failed to fetch conditions'); }
       });
@@ -386,6 +462,68 @@
       const val = Math.floor((num / 22.5) + 0.5);
       const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
       return arr[(val % 16)];
+    }
+    // Fetch current weather from Open-Meteo (no API key). Returns an object or throws.
+    async function fetchOpenMeteo(lat, lon){
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&current_weather=true&hourly=cloudcover&timezone=auto`;
+      const r = await fetch(url, {cache: 'no-store'});
+      if(!r.ok) throw new Error('Weather API HTTP '+r.status);
+      const js = await r.json();
+      // current_weather: temperature (°C), windspeed (km/h), winddirection (deg)
+      const cw = js.current_weather || {};
+      const tempC = cw.temperature;
+      const windKmh = cw.windspeed;
+      const windDeg = cw.winddirection;
+      // attempt to derive cloud cover from nearest hourly point
+      let cloudPct = null;
+      if(js.hourly && Array.isArray(js.hourly.time) && Array.isArray(js.hourly.cloudcover)){
+        const times = js.hourly.time.map(t=>new Date(t).getTime());
+        const now = Date.now();
+        // find nearest index
+        let bestIdx = 0, bestDiff = Infinity;
+        for(let i=0;i<times.length;i++){ const d = Math.abs(times[i]-now); if(d<bestDiff){ bestDiff=d; bestIdx=i; } }
+        cloudPct = Number(js.hourly.cloudcover[bestIdx]);
+      }
+      return { tempC, windKmh, windDeg, cloudPct };
+    }
+
+    // Placeholder for marine/surface data API for Lake Michigan (Holland <-> Muskegon area).
+    // Real marine data (surface temp, waves) typically comes from NOAA/GLERL/NDBC/ERDDAP and may need different endpoints.
+    // This placeholder returns null and is intended to be replaced with a proper API call later.
+    async function fetchMarineNearest(lat, lon){
+      // 1) Attempt GLERL/NDBC (not implemented client-side because of CORS); placeholder for future server-side lookup
+      try{
+        // TODO: implement server-side GLERL/NDBC lookup and return { surfaceTempC, waveHeightM }
+        // For now, proceed to fallback
+      }catch(e){ console.warn('GLERL lookup failed (skipping):', e); }
+      // 2) Fallback: Open-Meteo Marine API (public, no key) — returns sea surface temperature and significant wave height (hourly)
+      try{
+        const m = await fetchOpenMeteoMarine(lat, lon);
+        return m; // { sstC, waveM }
+      }catch(err){
+        console.warn('Marine fallback failed', err);
+        return null;
+      }
+    }
+
+    // Query Open-Meteo's Marine API (no key). Returns { sstC, waveM } or throws.
+    async function fetchOpenMeteoMarine(lat, lon){
+      // hourly=sea_surface_temperature,significant_wave_height
+      const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&hourly=sea_surface_temperature,significant_wave_height&timezone=auto`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if(!res.ok) throw new Error('Marine API HTTP '+res.status);
+      const js = await res.json();
+      // pick nearest hourly value
+      let sst = null, wave = null;
+      if(js && js.hourly && Array.isArray(js.hourly.time)){
+        const times = js.hourly.time.map(t=>new Date(t).getTime());
+        const now = Date.now();
+        let bestIdx = 0, bestDiff = Infinity;
+        for(let i=0;i<times.length;i++){ const d = Math.abs(times[i]-now); if(d<bestDiff){ bestDiff=d; bestIdx=i; } }
+        if(js.hourly.sea_surface_temperature && js.hourly.sea_surface_temperature[bestIdx] !== undefined) sst = Number(js.hourly.sea_surface_temperature[bestIdx]);
+        if(js.hourly.significant_wave_height && js.hourly.significant_wave_height[bestIdx] !== undefined) wave = Number(js.hourly.significant_wave_height[bestIdx]);
+      }
+      return { sstC: sst, waveM: wave };
     }
     const LS_KEY = 'blfl.state.v2';
     let state = load() || { trips: {}, lists: defaults(), dataVersion:3, settings:{quickMode:false, sticky:true} };
