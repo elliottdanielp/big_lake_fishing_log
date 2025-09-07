@@ -235,6 +235,7 @@
           <div style="display:flex;gap:12px">
             <button class="btn" id="exportCsv">Export catches (CSV)</button>
             <button class="btn secondary" id="pushToSheet">Push to Google Sheet</button>
+            <button class="btn secondary" id="pushFullTrip">Push full trip (rows)</button>
           </div>
         </div>
         <div class="hint">Note: CSV export is the simplest way to back up your log. Upload the file to Google Drive manually if you want a cloud backup.</div>
@@ -865,6 +866,41 @@
     }catch(e){ console.warn('pushTripToSheet error', e); toast('Network error while pushing trip'); }
   }
   attach('#pushToSheet','click', ()=>{ pushTripToSheet(); });
+  // Push full trip: send the entire trip (header + entries) in one POST.
+  // Server (Apps Script) should accept payload.trip and append rows server-side.
+  async function pushFullTrip(){
+    const id = currentTripId(); if(!id) return alert('No trip selected');
+    const t = state.trips[id]; const hdr = t.header || {};
+    const url = (state.settings && state.settings.sheetWebAppUrl) ? state.settings.sheetWebAppUrl.trim() : '';
+    const secret = (state.settings && state.settings.sheetSecret) ? state.settings.sheetSecret.trim() : '';
+    if(!url) return toast('Set Sheet Web App URL in Settings first');
+    toast('Pushing full trip (single request)...');
+    const payload = { secret: secret || '', trip: t };
+    try{
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+      if(!r.ok){ console.warn('pushFullTrip failed HTTP', r.status); // try no-cors fallback
+        try{
+          await fetch(url, { method:'POST', mode:'no-cors', body: JSON.stringify(payload) });
+          toast('Push attempted (no-cors fallback). Check sheet.');
+          return;
+        }catch(nc){ console.warn('no-cors fallback failed', nc); toast('Push failed: HTTP '+r.status); return; }
+      }
+      const js = await r.json().catch(()=>null);
+      if(js && js.ok){ toast('Full trip pushed (server appended rows)'); }
+      else { toast('Push completed; server response: '+(js && js.error? js.error : 'unknown')); }
+    }catch(err){
+      console.warn('pushFullTrip network error', err);
+      // try no-cors fallback as last resort
+      try{
+        await fetch(url, { method:'POST', mode:'no-cors', body: JSON.stringify(payload) });
+        toast('Push attempted (no-cors fallback). Check sheet.');
+      }catch(nc){
+        console.warn('no-cors fallback failed', nc);
+        toast('Network/CORS error while pushing full trip');
+      }
+    }
+  }
+  attach('#pushFullTrip','click', ()=>{ pushFullTrip(); });
     
   // Google Sheets / Drive upload helpers removed (app is local-only per user request)
     function download(name, content){ const blob=new Blob([content], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
