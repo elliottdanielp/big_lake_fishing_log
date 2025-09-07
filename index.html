@@ -115,6 +115,7 @@
         </div>
         <div style="margin-top:8px">
           <div class="muted">Tip: Tap <b>Download</b> or <b>Catch Conditions</b> before you leave to download latest conditions. Last cached: <span id="conditionsCached">—</span></div>
+          <div class="muted">Nearest station: <span id="conditionsStation">—</span></div>
         </div>
         <div class="hint">Tip: You can edit dropdown options under <b>Settings → Lists</b>.</div>
       </div>
@@ -281,6 +282,7 @@
         </div>
         <div class="row" style="margin-top:10px">
           <button class="btn good" id="savePrefs" type="button">Save preferences</button>
+          <button class="btn secondary" id="testStationJson" type="button">Test station JSON</button>
         </div>
         <div class="hint">Sticky keeps lure fields after saving. Quick mode hides advanced fields for speed.</div>
       </div>
@@ -732,7 +734,7 @@
   attach('#testStationJson','click', async ()=>{
     try{
       const tpl = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : '';
-      if(!tpl) return alert('Set station JSON template first in Preferences');
+      if(!tpl){ toast('Set station JSON template first in Preferences'); return; }
       // pick nearest station if available
       const stations = window.__stations || [];
       let nearest = stations[0] || null;
@@ -743,13 +745,17 @@
           const hav = (a,b)=>{ const R=6371; const dLat=toR(b.lat-a.lat); const dLon=toR(b.lon-a.lon); const la=toR(a.lat), lb=toR(b.lat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
           let best=null, bestD=Infinity; stations.forEach(s=>{ const d = hav({lat,lon}, {lat:s.lat, lon:s.lon}); if(d<bestD){ bestD=d; best=s; } }); if(best) nearest = best;
           const url = tpl.replace('{station}', encodeURIComponent(nearest.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
-          const r = await fetch(url, { cache: 'no-store' }); if(!r.ok) return alert('Fetch failed: '+r.status); const js = await r.json(); alert('Fetched OK: ' + JSON.stringify(js));
-        }, err=>{ alert('Geolocation failed: '+err.message); });
+          try{
+            const r = await fetch(url, { cache: 'no-store' }); if(!r.ok){ toast('Fetch failed: '+r.status); console.warn('station fetch failed', r.status, url); return; } const js = await r.json(); toast('Station JSON fetched OK'); console.log('station JSON', js);
+          }catch(e){ toast('Fetch error (see console)'); console.warn('station fetch error', e); }
+        }, err=>{ toast('Geolocation failed: '+(err && err.message)); console.warn('geolocation failed', err); });
       } else {
-        // no geolocation/stations - try template without replacement
-        const url = tpl.replace('{station}', encodeURIComponent(nearest && nearest.id || '')); const r = await fetch(url, { cache: 'no-store' }); if(!r.ok) return alert('Fetch failed: '+r.status); const js = await r.json(); alert('Fetched OK: ' + JSON.stringify(js));
+        try{
+          const url = tpl.replace('{station}', encodeURIComponent(nearest && nearest.id || ''));
+          const r = await fetch(url, { cache: 'no-store' }); if(!r.ok){ toast('Fetch failed: '+r.status); console.warn('station fetch failed', r.status, url); return; } const js = await r.json(); toast('Station JSON fetched OK'); console.log('station JSON', js);
+        }catch(e){ toast('Fetch error (see console)'); console.warn('station fetch error', e); }
       }
-    }catch(e){ alert('Test failed: '+e.message); }
+    }catch(e){ toast('Test failed'); console.warn('testStationJson failed', e); }
   });
   attach('#downloadConditions','click', ()=>{ if($('#fetchConditions')) $('#fetchConditions').click(); });
     // Register service worker for offline support (if available)
