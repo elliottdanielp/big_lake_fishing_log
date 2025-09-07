@@ -232,7 +232,10 @@
       <div class="card">
         <div class="section-title">Export / backup</div>
         <div class="grid cols-1">
-          <button class="btn" id="exportCsv">Export catches (CSV)</button>
+          <div style="display:flex;gap:12px">
+            <button class="btn" id="exportCsv">Export catches (CSV)</button>
+            <button class="btn secondary" id="pushToSheet">Push to Google Sheet</button>
+          </div>
         </div>
         <div class="hint">Note: CSV export is the simplest way to back up your log. Upload the file to Google Drive manually if you want a cloud backup.</div>
       </div>
@@ -282,6 +285,16 @@
           <label for="stationJsonTemplate">Optional: Station JSON template (public)</label>
           <input id="stationJsonTemplate" placeholder="https://yourhost.example/stations/{station}.json or raw GitHub URL" />
           <div class="hint">You can paste a GitHub Pages or raw URL template. Use <code>{station}</code> to substitute station id. Example: <code>https://raw.githubusercontent.com/elliottdanielp/big_lake_fishing_log/main/sample-ndbc.json</code></div>
+        </div>
+        <div style="margin-top:12px">
+          <label for="sheetWebAppUrl">Optional: Google Sheet Web App URL</label>
+          <input id="sheetWebAppUrl" placeholder="https://script.google.com/macros/s/....../exec" />
+          <div class="hint">Paste the Web App URL from Apps Script (deploy as Web app). We'll POST a single summary row when you tap Push to Google Sheet.</div>
+        </div>
+        <div style="margin-top:6px">
+          <label for="sheetSecret">Optional: Sheet secret (short token)</label>
+          <input id="sheetSecret" placeholder="shared-secret-for-posts" />
+          <div class="hint">A short secret that the Apps Script validates to prevent accidental writes. Keep private.</div>
         </div>
         <div class="row" style="margin-top:10px">
           <button class="btn good" id="savePrefs" type="button">Save preferences</button>
@@ -831,6 +844,27 @@
   }
   async function exportJson(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos={}; for(const e of t.entries){ if(e.photo){ photos[e.id]=await getPhoto(e.id); } } const out=Object.assign({}, t, { photos: photos, exportVersion:2 }); const fname='trip_'+(((t.header && t.header.date) || id))+'.json'; download(fname, JSON.stringify(out,null,2)); }
   async function exportAlbum(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos=[]; for(const e of t.entries){ if(e.photo){ photos.push({id:e.id, time:e.time, species:e.species, lure:[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '), durl: await getPhoto(e.id)}); } } const tripDate = (t.header && t.header.date) || 'trip'; const html='<!doctype html><meta charset="utf-8"><title>Album '+tripDate+'</title><style>body{font-family:system-ui;background:#0e131b;color:#e8eefb;margin:0;padding:16px}h1{font-size:20px} .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} figure{margin:0;background:#151b26;border:1px solid #243349;border-radius:12px;overflow:hidden} img{width:100%;height:200px;object-fit:cover;display:block} figcaption{padding:8px 10px;font-size:12px;color:#b9c9e3} </style><h1>Trip '+tripDate+'</h1><div class="g">'+photos.map(p=>'<figure><img src="'+p.durl+'"><figcaption>'+ (p.time||'') +' • '+ (p.species||'') +'<br>'+ (p.lure||'') +'</figcaption></figure>').join('')+'</div>'; download('album_'+tripDate+'.html', html); }
+  // Push trip summary to Google Sheets Web App (Apps Script). Requires settings: sheetWebAppUrl and sheetSecret
+  async function pushTripToSheet(){ const id=currentTripId(); if(!id) return alert('No trip selected'); const t=state.trips[id]; const hdr=t.header||{}; const url = (state.settings && state.settings.sheetWebAppUrl) ? state.settings.sheetWebAppUrl.trim() : ''; const secret = (state.settings && state.settings.sheetSecret) ? state.settings.sheetSecret.trim() : ''; if(!url) return toast('Set Sheet Web App URL in Settings first');
+    const payload = {
+      secret: secret || '',
+      tripDate: hdr.date || '',
+      time: hdr.startTime || '',
+      port: hdr.port || '',
+      gpsLat: hdr.lastLat || '',
+      gpsLon: hdr.lastLon || '',
+      waterDepth: hdr.bestWaterDepth || '',
+      surfaceTemp: hdr.surfaceTemp || '',
+      notes: hdr.notes || ''
+    };
+    try{
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+      if(!r.ok) { toast('Push failed: HTTP '+r.status); console.warn('pushTripToSheet failed', r.status); return; }
+      const js = await r.json().catch(()=>null);
+      if(js && js.ok) { toast('Trip pushed to Google Sheet'); } else { toast('Push completed; server response: '+(js && js.error? js.error : 'unknown')); }
+    }catch(e){ console.warn('pushTripToSheet error', e); toast('Network error while pushing trip'); }
+  }
+  attach('#pushToSheet','click', ()=>{ pushTripToSheet(); });
     
   // Google Sheets / Drive upload helpers removed (app is local-only per user request)
     function download(name, content){ const blob=new Blob([content], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
@@ -843,6 +877,11 @@
   function initPrefs(){ $('#prefQuickDefault').checked = !!(state.settings && state.settings.quickMode); $('#prefSticky').checked = ((state.settings && state.settings.sticky) !== false); }
   function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; const st = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : ''; state.settings.stationJsonTemplate = st; save(); toast('Preferences saved'); applyQuickMode(); }
   attach('#savePrefs','click', savePrefs);
+  // persist sheet web app settings when saving prefs
+  function loadSheetPrefsIntoForm(){ try{ const el = $('#sheetWebAppUrl'); if(el) el.value = (state.settings && state.settings.sheetWebAppUrl) || ''; }catch(e){} try{ const s = $('#sheetSecret'); if(s) s.value = (state.settings && state.settings.sheetSecret) || ''; }catch(e){} }
+  // update savePrefs to persist new fields
+  const _oldSavePrefs = savePrefs;
+  savePrefs = function(){ _oldSavePrefs(); state.settings.sheetWebAppUrl = ($('#sheetWebAppUrl') && $('#sheetWebAppUrl').value) ? $('#sheetWebAppUrl').value.trim() : ''; state.settings.sheetSecret = ($('#sheetSecret') && $('#sheetSecret').value) ? $('#sheetSecret').value.trim() : ''; save(); toast('Preferences saved'); };
     function applyQuickMode(){ const quick = state.settings.quickMode; $('#quickToggle').textContent = 'Quick Mode: '+(quick?'On':'Off'); const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth','keptRel','landedYN']); $$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } }); }
   attach('#quickToggle','click', ()=>{ state.settings.quickMode=!state.settings.quickMode; save(); applyQuickMode(); });
     function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0);} }
@@ -851,6 +890,8 @@
     function init(){ fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); // load marine JSON URL into the settings input
     try{ const el = $('#marineJsonUrl'); if(el) el.value = (state.settings && state.settings.marineJsonUrl) || ''; }catch(e){}
   try{ const st = $('#stationJsonTemplate'); if(st) st.value = (state.settings && state.settings.stationJsonTemplate) || 'https://blfl-ndbc-proxy.elliottdanielp.workers.dev/stations/{station}.json'; }catch(e){}
+    // load sheet prefs
+    try{ loadSheetPrefsIntoForm(); }catch(e){}
         // load stations list (for nearest NDBC station lookup)
         try{
           fetch('stations.json', { cache: 'no-store' }).then(r=>r.json()).then(js=>{ window.__stations = js || [] }).catch(()=>{ window.__stations = []; });
