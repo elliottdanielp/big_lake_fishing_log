@@ -1,0 +1,28 @@
+#YY  MM DD hh mm WVHT  SwH  SwP  WWH  WWP SwD WWD  STEEPNESS  APD MWD
+#yr  mo dy
+hr mn    m    m  sec    m  sec  -  degT     -      sec degT
+2025 09 07 04 40 
+0.5   MM   MM   MM   MM  MM  MM        N/A   MM 284
+2025 09 07 04 20  0.5   MM  
+MM   MM   MM  MM  MM        N/A   MM 297
+2025 09 07 04 00  0.5   MM   MM   MM  
+MM  MM  MM        N/A   MM 293
+2025 09 07 03 40  0.6   MM   MM   MM   MM  MM  MM
+       N/A   MM 296
+2025 09 07 03 20  0.6   MM   MM   MM   MM  MM  MM       
+...
+2025 09 07 01 00  0.8   MM   MM   MM   MM  MM  MM
+VERY_STEEP   MM 298
+2025 09 07 00 40  0.8   MM   
+MM   MM   MM   MM  MM  MM       
+N/A   MM 289
+2025 09 07 00 20  0.8   MM   MM   MM   MM  MM  MM VERY_STEEP   MM
+288
+2025 09 07 00 00  0.8   MM   MM   MM   MM  MM  MM VERY_STEEP   MM 283
+2025 09
+06 23 40  0.8   MM   
+...
+
+... (truncated)
+
+# Full file saved as ndbc-45161.spec.txt in the workspace.
