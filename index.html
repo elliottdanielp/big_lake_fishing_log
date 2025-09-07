@@ -846,7 +846,8 @@
   async function exportJson(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos={}; for(const e of t.entries){ if(e.photo){ photos[e.id]=await getPhoto(e.id); } } const out=Object.assign({}, t, { photos: photos, exportVersion:2 }); const fname='trip_'+(((t.header && t.header.date) || id))+'.json'; download(fname, JSON.stringify(out,null,2)); }
   async function exportAlbum(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos=[]; for(const e of t.entries){ if(e.photo){ photos.push({id:e.id, time:e.time, species:e.species, lure:[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '), durl: await getPhoto(e.id)}); } } const tripDate = (t.header && t.header.date) || 'trip'; const html='<!doctype html><meta charset="utf-8"><title>Album '+tripDate+'</title><style>body{font-family:system-ui;background:#0e131b;color:#e8eefb;margin:0;padding:16px}h1{font-size:20px} .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} figure{margin:0;background:#151b26;border:1px solid #243349;border-radius:12px;overflow:hidden} img{width:100%;height:200px;object-fit:cover;display:block} figcaption{padding:8px 10px;font-size:12px;color:#b9c9e3} </style><h1>Trip '+tripDate+'</h1><div class="g">'+photos.map(p=>'<figure><img src="'+p.durl+'"><figcaption>'+ (p.time||'') +' • '+ (p.species||'') +'<br>'+ (p.lure||'') +'</figcaption></figure>').join('')+'</div>'; download('album_'+tripDate+'.html', html); }
   // Push trip summary to Google Sheets Web App (Apps Script). Requires settings: sheetWebAppUrl and sheetSecret
-  async function pushTripToSheet(){ const id=currentTripId(); if(!id) return alert('No trip selected'); const t=state.trips[id]; const hdr=t.header||{}; const url = (state.settings && state.settings.sheetWebAppUrl) ? state.settings.sheetWebAppUrl.trim() : ''; const secret = (state.settings && state.settings.sheetSecret) ? state.settings.sheetSecret.trim() : ''; if(!url) return toast('Set Sheet Web App URL in Settings first');
+  async function pushTripToSheet(){ const id=currentTripId(); if(!id) return alert('No trip selected'); const t=state.trips[id]; const hdr=t.header||{}; let url = (state.settings && state.settings.sheetWebAppUrl) ? state.settings.sheetWebAppUrl.trim() : ''; let secret = (state.settings && state.settings.sheetSecret) ? state.settings.sheetSecret.trim() : ''; // defensive fallback: read directly from form if state wasn't persisted
+    if(!url) url = (readVal('#sheetWebAppUrl') || '').trim(); if(!secret) secret = (readVal('#sheetSecret') || '').trim(); if(!url) return toast('Set Sheet Web App URL in Settings first');
     const payload = {
       secret: secret || '',
       tripDate: hdr.date || '',
@@ -871,8 +872,10 @@
   async function pushFullTrip(){
     const id = currentTripId(); if(!id) return alert('No trip selected');
     const t = state.trips[id]; const hdr = t.header || {};
-    const url = (state.settings && state.settings.sheetWebAppUrl) ? state.settings.sheetWebAppUrl.trim() : '';
-    const secret = (state.settings && state.settings.sheetSecret) ? state.settings.sheetSecret.trim() : '';
+    let url = (state.settings && state.settings.sheetWebAppUrl) ? state.settings.sheetWebAppUrl.trim() : '';
+    let secret = (state.settings && state.settings.sheetSecret) ? state.settings.sheetSecret.trim() : '';
+    // defensive fallback: read directly from form if state wasn't persisted
+    if(!url) url = (readVal('#sheetWebAppUrl') || '').trim(); if(!secret) secret = (readVal('#sheetSecret') || '').trim();
     if(!url) return toast('Set Sheet Web App URL in Settings first');
     toast('Pushing full trip (single request)...');
     const payload = { secret: secret || '', trip: t };
@@ -918,6 +921,8 @@
   // update savePrefs to persist new fields
   const _oldSavePrefs = savePrefs;
   savePrefs = function(){ _oldSavePrefs(); state.settings.sheetWebAppUrl = ($('#sheetWebAppUrl') && $('#sheetWebAppUrl').value) ? $('#sheetWebAppUrl').value.trim() : ''; state.settings.sheetSecret = ($('#sheetSecret') && $('#sheetSecret').value) ? $('#sheetSecret').value.trim() : ''; save(); toast('Preferences saved'); };
+  // reattach handler so the button invokes the updated savePrefs wrapper
+  attach('#savePrefs','click', savePrefs);
     function applyQuickMode(){ const quick = state.settings.quickMode; $('#quickToggle').textContent = 'Quick Mode: '+(quick?'On':'Off'); const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth','keptRel','landedYN']); $$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } }); }
   attach('#quickToggle','click', ()=>{ state.settings.quickMode=!state.settings.quickMode; save(); applyQuickMode(); });
     function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0);} }
