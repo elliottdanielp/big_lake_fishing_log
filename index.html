@@ -632,12 +632,17 @@
       await loadGapiScript();
       if (!gapi.client) {
         await new Promise((res, rej) => {
-          gapi.load('client:auth2', async () => {
-            try {
-              await gapi.client.init({ apiKey: API_KEY, clientId: CLIENT_ID, discoveryDocs: DISCOVERY_DOCS, scope: SCOPES });
-              res();
-            } catch (err) { rej(err); }
-          });
+          try {
+            gapi.load('client:auth2', async () => {
+              try {
+                await gapi.client.init({ apiKey: API_KEY, clientId: CLIENT_ID, discoveryDocs: DISCOVERY_DOCS, scope: SCOPES });
+                res();
+              } catch (err) { console.error('gapi.client.init failed', err); rej(err); }
+            });
+          } catch (loadErr) {
+            console.error('gapi.load failed', loadErr);
+            rej(loadErr);
+          }
         });
       }
     }
@@ -646,8 +651,9 @@
       try {
         await ensureGapi();
         const GoogleAuth = gapi.auth2.getAuthInstance();
-        if (!GoogleAuth.isSignedIn.get()) await GoogleAuth.signIn();
-        toast('Signed in to Google');
+  if (!GoogleAuth) throw new Error('gapi.auth2.getAuthInstance() returned null — check gapi init and OAuth client configuration');
+  if (!GoogleAuth.isSignedIn.get()) await GoogleAuth.signIn();
+  toast('Signed in to Google');
       } catch (err) { alert('Google sign-in failed: ' + err.message); }
     }
 
@@ -763,11 +769,22 @@
       const id = currentTripId(); if(!id) return alert('No trip selected'); const sheetId = (document.getElementById('sheetId').value || '').trim(); if(!sheetId) return alert('Paste a Google Spreadsheet ID first'); const item = { ts: Date.now(), tripId: id, sheetId, range: 'Sheet1!A1' }; queuePush(item); toast('Queued upload'); // try to flush immediately
       flushUploadQueue();
     });
-    document.getElementById('authGapi').addEventListener('click', signInGapi);
+    document.getElementById('authGapi').addEventListener('click', (e)=>{
+      console.log('Auth click diagnostic:', { origin: location.origin, href: location.href, CLIENT_ID, API_KEY_present: !!API_KEY, gapi_present: !!window.gapi });
+      signInGapi(e).catch(err=>{ console.error('signInGapi rejected', err); alert('Google sign-in failed: ' + (err && err.message)); });
+    });
 
     // Attempt flush on online and on init
     window.addEventListener('online', ()=>{ console.log('online -> flushing upload queue'); flushUploadQueue(); });
-    window.addEventListener('load', ()=>{ updatePendingCount(); setTimeout(()=>flushUploadQueue(), 1000); });
+    window.addEventListener('load', async ()=>{
+      updatePendingCount();
+      setTimeout(()=>flushUploadQueue(), 1000);
+      // diagnostic: attempt a light gapi load to surface errors (no prompt)
+      try{
+        await loadGapiScript();
+        console.log('gapi script loaded');
+      }catch(e){ console.warn('gapi script load failed', e); toast('gapi script failed to load — check console for details'); }
+    });
     function download(name, content){ const blob=new Blob([content], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
     $('#exportCsv').onclick=exportCsv; $('#exportJson').onclick=exportJson; $('#exportAlbum').onclick=exportAlbum; $('#importJsonBtn').onclick=()=>$('#importJson').click();
     $('#importJson').onchange=(e)=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=async ()=>{ try{ const data=JSON.parse(r.result); if(!data.id) data.id=uid(); state.trips[data.id]={id:data.id, header:data.header||{}, entries:data.entries||[]}; if(data.photos){ for(const [eid,durl] of Object.entries(data.photos)){ try{ await savePhoto(eid,durl);}catch{} } } save(); refreshTripSelect(); $('#tripSelect').value=data.id; renderEntries(); renderSummary(); loadHeaderIntoForm(); alert('Trip imported.'); }catch(err){ alert('Import failed: '+err.message); } }; r.readAsText(f); };
