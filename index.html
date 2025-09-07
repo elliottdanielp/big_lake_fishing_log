@@ -257,13 +257,15 @@
   </div>
   <div id="toast"></div>
   <script>
-    // Ensure all event listeners are attached after DOM is loaded
-    const $ = (sel) => document.querySelector(sel);
-    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-    const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+  // Ensure all event listeners are attached after DOM is loaded
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+  const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+  // Helper for older browsers: attach event only if element exists (avoids optional-chaining syntax)
+  function attach(selector, evt, handler) { const el = document.querySelector(selector); if (el) el.addEventListener(evt, handler); }
     window.addEventListener('DOMContentLoaded', () => {
       // Manual override button clears and enables all weather fields for manual entry
-      $('#manualOverride')?.addEventListener('click', () => {
+  attach('#manualOverride', 'click', () => {
         ['airTemp','surfaceTemp','wind','waves','clouds'].forEach(id => {
           const el = document.getElementById(id);
           if (el) {
@@ -274,31 +276,31 @@
         toast('Weather fields cleared for manual entry');
       });
       // All other event listeners below (move all listeners inside this block)
-      $('#fetchConditions')?.addEventListener('click', async () => {
+  attach('#fetchConditions', 'click', async () => {
         // ...existing code...
       });
-      $('#saveTrip')?.addEventListener('click', saveHeader);
-      $('#newTrip')?.addEventListener('click', () => {
+  attach('#saveTrip', 'click', saveHeader);
+  attach('#newTrip', 'click', () => {
         // ...existing code...
       });
-      $('#tripSelect')?.addEventListener('change', () => {
+  attach('#tripSelect', 'change', () => {
         // ...existing code...
       });
-      $('#platform')?.addEventListener('change', () => {
+  attach('#platform', 'change', () => {
         // ...existing code...
       });
-      $('#nowBtn')?.addEventListener('click', setNow);
-      $('#getGps')?.addEventListener('click', () => {
+  attach('#nowBtn', 'click', setNow);
+  attach('#getGps', 'click', () => {
         // ...existing code...
       });
-      $('#saveLists')?.addEventListener('click', textareaToLists);
-      $('#restoreDefaults')?.addEventListener('click', () => {
+  attach('#saveLists', 'click', textareaToLists);
+  attach('#restoreDefaults', 'click', () => {
         // ...existing code...
       });
-      $('#addEntry')?.addEventListener('click', () => addOrUpdateEntry(false));
-      $('#forceSave')?.addEventListener('click', () => addOrUpdateEntry(true));
-      $('#cancelEdit')?.addEventListener('click', () => { setEditing(false); clearCatchForm(false); });
-      $('#dupLast')?.addEventListener('click', () => {
+  attach('#addEntry', 'click', () => addOrUpdateEntry(false));
+  attach('#forceSave', 'click', () => addOrUpdateEntry(true));
+  attach('#cancelEdit', 'click', () => { setEditing(false); clearCatchForm(false); });
+  attach('#dupLast', 'click', () => {
         const t=state.trips[currentTripId()];
         if(!t||!t.entries.length) return toast('No previous entry');
         const last=t.entries[t.entries.length-1];
@@ -307,15 +309,16 @@
         setNow();
         setEditing(false);
       });
-      $('#resetForm')?.addEventListener('click', clearCatchForm);
-      $('#clearPhoto')?.addEventListener('click', () => {
+  attach('#resetForm', 'click', clearCatchForm);
+  attach('#clearPhoto', 'click', () => {
         // ...existing code...
       });
-  const _lbClose = $('#lightboxClose');
-  if(_lbClose) _lbClose.onclick = () => { const lb = $('#lightbox'); if(lb) lb.classList.add('hide'); };
-  const _lightbox = $('#lightbox');
-  if(_lightbox) _lightbox.onclick = (e) => { if(e.target && e.target.id === 'lightbox') { _lightbox.classList.add('hide'); } };
-      $('#exportCsv')?.addEventListener('click', exportCsv);
+  // lightbox handlers (guarded)
+  const lbCloseBtn = $('#lightboxClose');
+  if (lbCloseBtn) lbCloseBtn.addEventListener('click', () => { const lb = $('#lightbox'); if (lb) lb.classList.add('hide'); });
+  const lightboxEl = $('#lightbox');
+  if (lightboxEl) lightboxEl.addEventListener('click', (e) => { if (e.target && e.target.id === 'lightbox') { lightboxEl.classList.add('hide'); } });
+      attach('#exportCsv', 'click', exportCsv);
       // Add any other button listeners here as needed
     });
     function degToCompass(num) {
@@ -331,7 +334,7 @@
     const DB_NAME='blfl-db', DB_VER=1;
     function openDB(){ return new Promise((resolve,reject)=>{ const req=indexedDB.open(DB_NAME,DB_VER); req.onupgradeneeded=()=>{ const db=req.result; if(!db.objectStoreNames.contains('photos')) db.createObjectStore('photos',{keyPath:'id'}); }; req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); }
     async function savePhoto(entryId, dataURL){ const db=await openDB(); await new Promise((res,rej)=>{ const tx=db.transaction('photos','readwrite'); tx.objectStore('photos').put({id:entryId, dataURL, ts:Date.now()}); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
-    async function getPhoto(entryId){ const db=await openDB(); return await new Promise((res,rej)=>{ const tx=db.transaction('photos','readonly'); const req=tx.objectStore('photos').get(entryId); req.onsuccess=()=>res(req.result?.dataURL||''); req.onerror=()=>rej(req.error); }); }
+  async function getPhoto(entryId){ const db=await openDB(); return await new Promise((res,rej)=>{ const tx=db.transaction('photos','readonly'); const req=tx.objectStore('photos').get(entryId); req.onsuccess=()=>res((req.result && req.result.dataURL) || ''); req.onerror=()=>rej(req.error); }); }
     async function deletePhoto(entryId){ const db=await openDB(); await new Promise((res,rej)=>{ const tx=db.transaction('photos','readwrite'); tx.objectStore('photos').delete(entryId); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
   // (Removed duplicate event listener for .tab-btn)
     function fillSelect(id, arr){ const el=$(id); el.innerHTML = '<option value="">—</option>' + arr.map(v=>`<option>${v}</option>`).join(''); }
@@ -341,7 +344,7 @@
   // (Removed duplicate event listeners for #saveLists and #restoreDefaults)
     function currentTripId(){ return $('#tripSelect').value || null; }
   function ensureTrip(){ let id=currentTripId(); if(!id){ id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; $('#tripSelect').value=id; save(); refreshTripSelect(); } return id; }
-    function refreshTripSelect(){ const sel=$('#tripSelect'); const opts=Object.values(state.trips).sort((a,b)=>(b.header?.date||'').localeCompare(a.header?.date||'')); sel.innerHTML = opts.map(t=>`<option value="${t.id}">${t.header?.date||'(no date)'} • ${t.header?.port||'Port'}</option>`).join(''); }
+  function refreshTripSelect(){ const sel=$('#tripSelect'); const opts=Object.values(state.trips).sort((a,b)=>{ const ad=(b.header && b.header.date) || ''; const bd=(a.header && a.header.date) || ''; return ad.localeCompare(bd); }); sel.innerHTML = opts.map(t=>`<option value="${t.id}">${(t.header && t.header.date)||'(no date)'} • ${ (t.header && t.header.port) || 'Port'}</option>`).join(''); }
   function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value }; state.trips[id].updatedAt=Date.now(); save(); refreshTripSelect(); $('#tripSelect').value=id; alert('Trip header saved.'); }
   // (Removed duplicate event listeners for #saveTrip, #newTrip, #tripSelect)
   function loadHeaderIntoForm(){ const t=state.trips[currentTripId()]; if(!t) return; const h=t.header||{}; $('#tripDate').value=h.date||''; $('#startTime').value=h.startTime||''; $('#port').value=h.port||''; $('#boat').value=h.boat||''; $('#crew').value=h.crew||''; $('#hours').value=h.hours||''; $('#airTemp').value=h.airTemp||''; $('#surfaceTemp').value=h.surfaceTemp||''; $('#wind').value=h.wind||''; $('#waves').value=h.waves||''; $('#clouds').value=h.clouds||''; }
@@ -352,10 +355,10 @@
     $('#getGps').addEventListener('click', ()=>{ if(!('geolocation' in navigator)) return alert('Geolocation not supported on this device/browser.'); navigator.geolocation.getCurrentPosition(pos=>{ const {latitude,longitude}=pos.coords; $('#gps').value=`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`; }, err=>{ alert('Location error: '+err.message+'\nTip: Ensure site permissions and HTTPS.'); }, {enableHighAccuracy:true, timeout:8000, maximumAge:10000}); });
     const photoInput = $('#photoInput'); const photoPreview = $('#photoPreview'); const clearPhotoBtn = $('#clearPhoto'); let pendingPhotoDataURL='';
     function fileToDataURLResized(file, maxDim=1600, quality=0.82){ return new Promise((resolve,reject)=>{ const fr=new FileReader(); fr.onload=()=>{ const img=new Image(); img.onload=()=>{ const c=document.createElement('canvas'); let w=img.width,h=img.height; const scale=Math.min(1, maxDim/Math.max(w,h)); const nw=Math.max(1,Math.round(w*scale)), nh=Math.max(1,Math.round(h*scale)); c.width=nw; c.height=nh; c.getContext('2d').drawImage(img,0,0,nw,nh); try{ resolve(c.toDataURL('image/jpeg', quality)); }catch(e){ reject(e); } }; img.onerror=reject; img.src=fr.result; }; fr.onerror=reject; fr.readAsDataURL(file); }); }
-    photoInput.addEventListener('change', async ()=>{ const f=photoInput.files?.[0]; if(!f){ pendingPhotoDataURL=''; photoPreview.classList.add('hide'); photoPreview.src=''; return; } try{ pendingPhotoDataURL=await fileToDataURLResized(f); photoPreview.src=pendingPhotoDataURL; photoPreview.classList.remove('hide'); }catch(err){ alert('Photo error: '+err.message); } });
+  photoInput.addEventListener('change', async ()=>{ const f=(photoInput.files && photoInput.files[0]); if(!f){ pendingPhotoDataURL=''; photoPreview.classList.add('hide'); photoPreview.src=''; return; } try{ pendingPhotoDataURL=await fileToDataURLResized(f); photoPreview.src=pendingPhotoDataURL; photoPreview.classList.remove('hide'); }catch(err){ alert('Photo error: '+err.message); } });
     clearPhotoBtn.addEventListener('click', ()=>{ pendingPhotoDataURL=''; photoInput.value=''; photoPreview.classList.add('hide'); photoPreview.src=''; });
-    function readVal(id){ return (document.querySelector(id)?.value||'').trim(); } function num(x){ return x?Number(x):''; }
-    function computeTs(header, timeStr){ if(header?.date && timeStr){ const ds=header.date+'T'+timeStr+':00'; const d=new Date(ds); if(!isNaN(d)) return d.getTime(); } return Date.now(); }
+  function readVal(id){ const el=document.querySelector(id); return (el && el.value || '').trim(); } function num(x){ return x?Number(x):''; }
+  function computeTs(header, timeStr){ if(header && header.date && timeStr){ const ds=header.date+'T'+timeStr+':00'; const d=new Date(ds); if(!isNaN(d)) return d.getTime(); } return Date.now(); }
     let editingEntryId=null; let undoTimer=null; let pendingDelete=null; const UNDO_MS=12000;
     function setEditing(on){ editingEntryId = on?editingEntryId:null; $('#cancelEdit').style.display = on?'inline-block':'none'; $('#addEntry').textContent = on?'Update entry':'Save entry'; }
     function validateEntry(isQuick){ const req=[]; const time=readVal('#time'); const platform=readVal('#platform'); const species=readVal('#species'); const lureType=readVal('#lureType'); const water=readVal('#waterDepth'); const target=readVal('#targetDepth'); if(!time) req.push('#time'); if(!platform) req.push('#platform'); if(!species) req.push('#species'); if(!lureType) req.push('#lureType'); if(!water && !target) { req.push('#waterDepth'); req.push('#targetDepth'); }
@@ -386,7 +389,7 @@
     async function openLightbox(entryId){ const durl = await getPhoto(entryId); if(!durl){ alert('No photo for this entry.'); return; } $('#lightboxImg').src=durl; $('#lightbox').classList.remove('hide'); }
   // lightbox handlers are attached inside DOMContentLoaded above (guarded). Duplicate handlers removed.
     function renderSummary(){ const t=state.trips[currentTripId()]; const box=$('#summary'); if(!t||!t.entries.length){ box.innerHTML='<span class="muted">No entries yet.</span>'; return; } const h=t.header||{}; const n=t.entries.length; const landed=t.entries.filter(e=>e.landed==='Y').length; const kept=t.entries.filter(e=>e.keptRel==='Kept').length; const bestWaterDepth=mode(t.entries.map(e=>e.waterDepth).filter(Number.isFinite)); const bestTargetDepth=mode(t.entries.map(e=>e.targetDepth).filter(Number.isFinite)); const bestLureType=mode(t.entries.map(e=>e.lureType).filter(Boolean)); const bestColor=mode(t.entries.map(e=>e.lureColor).filter(Boolean)); const bestDir=mode(t.entries.map(e=>e.trollDir).filter(Boolean)); const lengths=t.entries.map(e=>e.lengthIn).filter(Number.isFinite); const weights=t.entries.map(e=>e.weightLb).filter(Number.isFinite); const avg=(arr)=> (arr.length? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1):''); const chips=[`Date: <b>${h.date||'-'}</b>`,`Port: <b>${h.port||'-'}</b>`,`Crew: <b>${h.crew||'-'}</b>`,`Entries: <b>${n}</b>`,`Landed: <b>${landed}</b>`,`Kept: <b>${kept}</b>`,`Best water depth: <b>${bestWaterDepth||'-'}</b>`,`Best target depth: <b>${bestTargetDepth||'-'}</b>`,`Best direction: <b>${bestDir||'-'}</b>`,`Best lure: <b>${bestLureType||'-'}</b>`,`Best color: <b>${bestColor||'-'}</b>`]; if(lengths.length>=2) chips.push(`Avg length: <b>${avg(lengths)} in</b>`); if(weights.length>=2) chips.push(`Avg weight: <b>${avg(weights)} lb</b>`); box.innerHTML='<div class="grid cols-3">'+chips.map(c=>`<div class="chip">${c}</div>`).join('')+'</div>'; }
-    function updateLogBadge(){ const t=state.trips[currentTripId()]; const badge=$('#logCountBadge'); if(!badge) return; const n=t?.entries.length||0; if(n){ badge.style.display='inline-block'; badge.textContent=n; } else { badge.style.display='none'; } }
+  function updateLogBadge(){ const t=state.trips[currentTripId()]; const badge=$('#logCountBadge'); if(!badge) return; const n=(t && t.entries && t.entries.length) || 0; if(n){ badge.style.display='inline-block'; badge.textContent=n; } else { badge.style.display='none'; } }
     function renderAnalytics(){ const t=state.trips[currentTripId()]; const box=$('#analytics'); if(!box) return; if(!t||!t.entries.length){ box.innerHTML='(No data)'; return; } const entries=t.entries.slice(); const countBy=(k)=>{ const m={}; entries.forEach(e=>{ const v=e[k]; if(!v) return; m[v]=(m[v]||0)+1; }); return Object.entries(m).sort((a,b)=>b[1]-a[1]); }; const top=(arr,n=3)=>arr.slice(0,n).map(([k,v])=>`${k} (${v})`).join(', '); const platforms=countBy('platform'); const species=countBy('species'); const lureTypes=countBy('lureType'); const colors=countBy('lureColor'); // depth buckets 10 ft
       function bucket(arr){ const m={}; arr.filter(Number.isFinite).forEach(v=>{ const b=Math.floor(v/10)*10; const label=`${b}-${b+9}`; m[label]=(m[label]||0)+1; }); return Object.entries(m).sort((a,b)=>{ const na=parseInt(a[0]); const nb=parseInt(b[0]); return na-nb; }); }
       const wdBuckets=bucket(entries.map(e=>e.waterDepth)); const tdBuckets=bucket(entries.map(e=>e.targetDepth)); // timeline 15 min
@@ -397,204 +400,31 @@
     }
     function mode(arr){ if(!arr.length) return ''; const map=new Map(); arr.forEach(v=>map.set(v,(map.get(v)||0)+1)); let m='',c=0; map.forEach((n,k)=>{ if(n>c){c=n;m=k;} }); return m; }
     function toCsvRow(fields){ return fields.map(v=>{ if(v===null||v===undefined) v=''; v=String(v); if(/[",\n]/.test(v)) v='"'+v.replace(/"/g,'""')+'"'; return v; }).join(','); }
-  async function exportCsv(){ const t=state.trips[currentTripId()]; if(!t) return alert('No trip.'); const h=['TripDate','Time','Timestamp','PortArea','GPS_Lat','GPS_Lon','Waypoint','WaterDepth_ft','SurfaceTemp_F','Platform','RodPosition','LineType','LineStrength_lb','LineLengthOut_ft','DipsySize','DipsySetting','RiggerBallWeight_lb','RiggerBallDepth_ft','TargetDepth_ft','StrikeDepthSeen_ft','SpeedAtBall_mph','SOG_mph','TrollDirection','LureType','LureBrand','LureModel','LureSize','LureColor','LeaderLength_ft','Attractor/Flasher','Fly/MeatColor','Species','Length_in','Weight_lb','KeptOrReleased','HookLocation','Landed_YN','FightTime_min','Notes','HasPhoto']; const lines=[toCsvRow(h)]; const hdr=t.header||{}; for(const e of t.entries){ const [lat,lon]=(e.gps||'').split(',').map(s=>s?.trim()); const row=[ hdr.date||'', e.time||'', e.ts||'', hdr.port||'', lat||'', lon||'', '', hdr.surfaceTemp||'', e.platform||'', '', e.lineType||'', e.lineStrength||'', e.lineOut||'', e.dipsySize||'', e.dipsySetting||'', e.ballWeight||'', e.ballDepth||'', e.targetDepth||'', e.strikeDepthSeen||'', e.speedBall||'', e.sog||'', e.trollDir||'', e.lureType||'', e.lureBrand||'', '', e.lureSize||'', e.lureColor||'', e.leaderLen||'', e.attractor||'', e.flyMeat||'', e.species||'', e.lengthIn||'', e.weightLb||'', e.keptRel||'', e.hookLoc||'', e.landed||'', '', e.notes||'', e.photo?'Y':'N' ]; lines.push(toCsvRow(row)); } download('catches_'+(hdr.date||'trip')+'.csv', lines.join('\n')); }
-    async function exportJson(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos={}; for(const e of t.entries){ if(e.photo){ photos[e.id]=await getPhoto(e.id); } } const out={...t, photos, exportVersion:2}; download('trip_'+(t.header?.date||id)+'.json', JSON.stringify(out,null,2)); }
-    async function exportAlbum(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos=[]; for(const e of t.entries){ if(e.photo){ photos.push({id:e.id, time:e.time, species:e.species, lure:[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '), durl: await getPhoto(e.id)}); } } const html='<!doctype html><meta charset="utf-8"><title>Album '+(t.header?.date||'trip')+'</title><style>body{font-family:system-ui;background:#0e131b;color:#e8eefb;margin:0;padding:16px}h1{font-size:20px} .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} figure{margin:0;background:#151b26;border:1px solid #243349;border-radius:12px;overflow:hidden} img{width:100%;height:200px;object-fit:cover;display:block} figcaption{padding:8px 10px;font-size:12px;color:#b9c9e3} </style><h1>Trip '+(t.header?.date||'')+'</h1><div class="g">'+photos.map(p=>'<figure><img src="'+p.durl+'"><figcaption>'+ (p.time||'') +' • '+ (p.species||'') +'<br>'+ (p.lure||'') +'</figcaption></figure>').join('')+'</div>'; download('album_'+(t.header?.date||id)+'.html', html); }
+  async function exportCsv(){ const t=state.trips[currentTripId()]; if(!t) return alert('No trip.'); const h=['TripDate','Time','Timestamp','PortArea','GPS_Lat','GPS_Lon','Waypoint','WaterDepth_ft','SurfaceTemp_F','Platform','RodPosition','LineType','LineStrength_lb','LineLengthOut_ft','DipsySize','DipsySetting','RiggerBallWeight_lb','RiggerBallDepth_ft','TargetDepth_ft','StrikeDepthSeen_ft','SpeedAtBall_mph','SOG_mph','TrollDirection','LureType','LureBrand','LureModel','LureSize','LureColor','LeaderLength_ft','Attractor/Flasher','Fly/MeatColor','Species','Length_in','Weight_lb','KeptOrReleased','HookLocation','Landed_YN','FightTime_min','Notes','HasPhoto']; const lines=[toCsvRow(h)]; const hdr=t.header||{}; for(const e of t.entries){ const parts=(e.gps||'').split(','); const lat=(parts[0] && parts[0].trim())||''; const lon=(parts[1] && parts[1].trim())||''; const row=[ hdr.date||'', e.time||'', e.ts||'', hdr.port||'', lat||'', lon||'', '', hdr.surfaceTemp||'', e.platform||'', '', e.lineType||'', e.lineStrength||'', e.lineOut||'', e.dipsySize||'', e.dipsySetting||'', e.ballWeight||'', e.ballDepth||'', e.targetDepth||'', e.strikeDepthSeen||'', e.speedBall||'', e.sog||'', e.trollDir||'', e.lureType||'', e.lureBrand||'', '', e.lureSize||'', e.lureColor||'', e.leaderLen||'', e.attractor||'', e.flyMeat||'', e.species||'', e.lengthIn||'', e.weightLb||'', e.keptRel||'', e.hookLoc||'', e.landed||'', '', e.notes||'', e.photo?'Y':'N' ]; lines.push(toCsvRow(row)); } download('catches_'+(hdr.date||'trip')+'.csv', lines.join('\n')); }
+  async function exportJson(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos={}; for(const e of t.entries){ if(e.photo){ photos[e.id]=await getPhoto(e.id); } } const out=Object.assign({}, t, { photos: photos, exportVersion:2 }); const fname='trip_'+(((t.header && t.header.date) || id))+'.json'; download(fname, JSON.stringify(out,null,2)); }
+  async function exportAlbum(){ const id=currentTripId(); if(!id) return alert('No trip.'); const t=state.trips[id]; const photos=[]; for(const e of t.entries){ if(e.photo){ photos.push({id:e.id, time:e.time, species:e.species, lure:[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '), durl: await getPhoto(e.id)}); } } const tripDate = (t.header && t.header.date) || 'trip'; const html='<!doctype html><meta charset="utf-8"><title>Album '+tripDate+'</title><style>body{font-family:system-ui;background:#0e131b;color:#e8eefb;margin:0;padding:16px}h1{font-size:20px} .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} figure{margin:0;background:#151b26;border:1px solid #243349;border-radius:12px;overflow:hidden} img{width:100%;height:200px;object-fit:cover;display:block} figcaption{padding:8px 10px;font-size:12px;color:#b9c9e3} </style><h1>Trip '+tripDate+'</h1><div class="g">'+photos.map(p=>'<figure><img src="'+p.durl+'"><figcaption>'+ (p.time||'') +' • '+ (p.species||'') +'<br>'+ (p.lure||'') +'</figcaption></figure>').join('')+'</div>'; download('album_'+tripDate+'.html', html); }
     
-    // --- Google Sheets upload helpers ---
-    function loadGapiScript() {
-      return new Promise((resolve, reject) => {
-        if (window.gapi) return resolve();
-        const script = document.createElement('script');
-        script.src = 'https://apis.google.com/js/api.js';
-        script.onload = resolve;
-        script.onerror = reject;
-        document.body.appendChild(script);
-      });
-    }
-
-    async function ensureGapi() {
-      await loadGapiScript();
-      if (!gapi.client) {
-        await new Promise((res, rej) => {
-          try {
-            gapi.load('client:auth2', async () => {
-              try {
-                await gapi.client.init({ apiKey: API_KEY, clientId: CLIENT_ID, discoveryDocs: DISCOVERY_DOCS, scope: SCOPES });
-                res();
-              } catch (err) { console.error('gapi.client.init failed', err); rej(err); }
-            });
-          } catch (loadErr) {
-            console.error('gapi.load failed', loadErr);
-            rej(loadErr);
-          }
-        });
-      }
-    }
-
-    async function signInGapi() {
-      try {
-        await ensureGapi();
-        const GoogleAuth = gapi.auth2.getAuthInstance();
-  if (!GoogleAuth) throw new Error('gapi.auth2.getAuthInstance() returned null — check gapi init and OAuth client configuration');
-  if (!GoogleAuth.isSignedIn.get()) await GoogleAuth.signIn();
-  toast('Signed in to Google');
-      } catch (err) { alert('Google sign-in failed: ' + err.message); }
-    }
-
-  function buildRowsForTrip(trip, photoUrlMap={}) {
-      const hdr = trip.header || {};
-      const rows = [];
-      // header row describing columns (optional) — uncomment to push as first row
-      // rows.push(['TripDate','Time','Port','GPS_Lat','GPS_Lon','WaterDepth_ft','SurfaceTemp_F','Thermocline_ft','Platform','Lure','Species','Length_in','Weight_lb','Kept','Landed','Notes','HasPhoto']);
-      for (const e of trip.entries) {
-        const [lat, lon] = (e.gps || '').split(',').map(s => s && s.trim());
-        rows.push([
-          hdr.date || '', e.time || '', hdr.port || '', lat || '', lon || '', e.waterDepth || '', hdr.surfaceTemp || '', hdr.thermocline || '', e.platform || '', [e.lureType, e.lureBrand, e.lureColor].filter(Boolean).join(' • '), e.species || '', e.lengthIn || '', e.weightLb || '', e.keptRel || '', e.landed || '', e.notes || '', e.photo ? 'Y' : 'N', photoUrlMap[e.id] || ''
-        ]);
-      }
-      return rows;
-    }
-
-    async function uploadToSheets() {
-      const id = currentTripId(); if(!id) return alert('No trip selected');
-      const sheetId = (document.getElementById('sheetId').value || '').trim(); if(!sheetId) return alert('Paste a Google Spreadsheet ID first');
-      try {
-        await ensureGapi();
-        const GoogleAuth = gapi.auth2.getAuthInstance(); if (!GoogleAuth.isSignedIn.get()) await GoogleAuth.signIn();
-        const t = state.trips[id]; if(!t) return alert('Trip not found');
-        const rows = buildRowsForTrip(t);
-  // Ensure the sheet has a header row first for readability
-  const SHEET_HEADERS = ['TripDate','Time','Port','GPS_Lat','GPS_Lon','WaterDepth_ft','SurfaceTemp_F','Thermocline_ft','Platform','Lure','Species','Length_in','Weight_lb','Kept','Landed','Notes','HasPhoto','PhotoURL'];
-  try{ await ensureSheetHasHeader(sheetId, 'Sheet1', SHEET_HEADERS); }catch(e){ console.warn('ensure header failed', e); }
-        // Append rows to first sheet (Sheet1) by default
-        const range = 'Sheet1!A1';
-        const resp = await gapi.client.sheets.spreadsheets.values.append({ spreadsheetId: sheetId, range, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS', resource: { values: rows } });
-        if (resp.status === 200) { toast('Uploaded ' + rows.length + ' rows to sheet'); } else { alert('Upload returned: ' + resp.statusText); }
-      } catch (err) { alert('Upload failed: ' + (err.message || err)); }
-    }
-
-    // --- Upload queue (offline-first) ---
-    const UPLOAD_QUEUE_KEY = 'blfl.upload.queue.v1';
-
-    function loadUploadQueue(){ try{ const s=localStorage.getItem(UPLOAD_QUEUE_KEY); return s?JSON.parse(s):[]; }catch(e){ return []; } }
-    function saveUploadQueue(q){ try{ localStorage.setItem(UPLOAD_QUEUE_KEY, JSON.stringify(q)); }catch(e){ console.warn('save queue failed', e); } }
-    function queuePush(item){ const q=loadUploadQueue(); q.push(item); saveUploadQueue(q); updatePendingCount(); }
-    function queuePop(){ const q=loadUploadQueue(); const it=q.shift(); saveUploadQueue(q); updatePendingCount(); return it; }
-    function updatePendingCount(){ const q=loadUploadQueue(); let badge=$('#uploadPending'); if(!badge){ // create small badge near upload button
-        const btn = $('#uploadSheet'); badge = document.createElement('span'); badge.id='uploadPending'; badge.className='badge-count'; badge.style.marginLeft='8px'; btn.parentNode.insertBefore(badge, btn.nextSibling); }
-      badge.textContent = q.length; if(q.length===0) badge.style.display='none'; else badge.style.display='inline-block'; }
-
-    // Upload photos to Drive and return map { entryId: publicUrl }
-    async function uploadPhotosForTrip(trip){ const photoMap = {}; for(const e of trip.entries){ if(e.photo){ try{ const data = await getPhoto(e.id); if(data){ const fname = `trip_${trip.id}_${e.id}.jpg`; const url = await uploadPhotoToDrive(data, fname); photoMap[e.id]=url; } }catch(err){ console.warn('photo upload failed', e.id, err); } } } return photoMap; }
-
-    // Upload a base64 dataURL to Drive and return a file open link (requires drive.file scope)
-    async function uploadPhotoToDrive(dataUrl, filename){ try{
-      // Convert dataURL to blob
-      const res = await fetch(dataUrl); const blob = await res.blob(); const metadata = { name: filename, mimeType: blob.type };
-      const accessToken = gapi.auth.getToken().access_token;
-      // multipart upload
-      const boundary = '-------BLFL' + Math.random().toString(36).slice(2);
-      const delimiter = `\r\n--${boundary}\r\n`;
-      const close = `\r\n--${boundary}--`;
-      const reader = await new Response(blob).arrayBuffer();
-      const base64Data = btoa(String.fromCharCode.apply(null, new Uint8Array(reader)));
-      const metadataPart = `Content-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}`;
-      const multipartRequestBody = delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) + delimiter + `Content-Type: ${blob.type}\r\nContent-Transfer-Encoding: base64\r\n\r\n` + base64Data + close;
-      const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method:'POST', headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'multipart/related; boundary="' + boundary + '"' }, body: multipartRequestBody });
-      if(!resp.ok) throw new Error('Drive upload HTTP ' + resp.status);
-      const j = await resp.json();
-      // Make file shareable (anyone with link) — create permission
-      await fetch(`https://www.googleapis.com/drive/v3/files/${j.id}/permissions`, { method:'POST', headers:{ 'Authorization':'Bearer '+accessToken, 'Content-Type':'application/json' }, body: JSON.stringify({ role:'reader', type:'anyone' }) });
-      // Return webViewLink if present else construct URL
-      return j.webViewLink || `https://drive.google.com/file/d/${j.id}/view`;
-    }catch(err){ console.warn('uploadPhotoToDrive error', err); return ''; } }
-
-    async function flushUploadQueue(){
-      const q = loadUploadQueue(); if(!q.length) return; if(!navigator.onLine) return;
-      try{ await ensureGapi(); const GoogleAuth = gapi.auth2.getAuthInstance(); if(!GoogleAuth.isSignedIn.get()) { console.log('Not signed in; will not flush'); return; } }catch(e){ console.warn('gapi not ready', e); return; }
-      // attempt to send until empty or error
-      while(true){
-        const item = loadUploadQueue()[0];
-        if(!item) break;
-        try{
-          // load trip fresh
-          const trip = state.trips[item.tripId];
-          if(!trip){ queuePop(); continue; }
-          // upload photos (if any) and build rows including photo URLs
-          const photoMap = await uploadPhotosForTrip(trip);
-          const rows = buildRowsForTrip(trip, photoMap);
-          // ensure header
-          const SHEET_HEADERS = ['TripDate','Time','Port','GPS_Lat','GPS_Lon','WaterDepth_ft','SurfaceTemp_F','Thermocline_ft','Platform','Lure','Species','Length_in','Weight_lb','Kept','Landed','Notes','HasPhoto','PhotoURL'];
-          try{ await ensureSheetHasHeader(item.sheetId, 'Sheet1', SHEET_HEADERS); }catch(e){ console.warn('ensure header failed', e); }
-          const resp = await gapi.client.sheets.spreadsheets.values.append({ spreadsheetId: item.sheetId, range: item.range||'Sheet1!A1', valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS', resource: { values: rows } });
-          if(resp.status===200){ queuePop(); toast('Uploaded queued trip ('+ (rows.length) +' rows)'); continue; }
-          else { console.warn('append returned', resp.status); break; }
-        }catch(err){ console.warn('flush failed', err); break; }
-      }
-    }
-
-    // Ensure the sheet has a header row (writes headers to A1 if sheet is empty or headers missing)
-    async function ensureSheetHasHeader(spreadsheetId, sheetName='Sheet1', headers=[]) {
-      try{
-        const range = `${sheetName}!A1:Z1`;
-        const getResp = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId, range });
-        const existing = (getResp.result && getResp.result.values && getResp.result.values[0]) || [];
-        // If existing first row has any non-empty cell, assume header exists
-        const hasHeader = existing.some(c => (String(c||'').trim() !== ''));
-        if(!hasHeader){ // write header
-          await gapi.client.sheets.spreadsheets.values.update({ spreadsheetId, range, valueInputOption: 'RAW', resource: { values: [headers] } });
-          console.log('Header row written');
-        }
-      }catch(err){ console.warn('ensureSheetHasHeader error', err); throw err; }
-    }
-
-    // Wire upload button to enqueue + attempt flush
-    document.getElementById('uploadSheet').addEventListener('click', ()=>{
-      const id = currentTripId(); if(!id) return alert('No trip selected'); const sheetId = (document.getElementById('sheetId').value || '').trim(); if(!sheetId) return alert('Paste a Google Spreadsheet ID first'); const item = { ts: Date.now(), tripId: id, sheetId, range: 'Sheet1!A1' }; queuePush(item); toast('Queued upload'); // try to flush immediately
-      flushUploadQueue();
-    });
-    document.getElementById('authGapi').addEventListener('click', (e)=>{
-      console.log('Auth click diagnostic:', { origin: location.origin, href: location.href, CLIENT_ID, API_KEY_present: !!API_KEY, gapi_present: !!window.gapi });
-      signInGapi(e).catch(err=>{ console.error('signInGapi rejected', err); alert('Google sign-in failed: ' + (err && err.message)); });
-    });
-
-    // Attempt flush on online and on init
-    window.addEventListener('online', ()=>{ console.log('online -> flushing upload queue'); flushUploadQueue(); });
-    window.addEventListener('load', async ()=>{
-      updatePendingCount();
-      setTimeout(()=>flushUploadQueue(), 1000);
-      // diagnostic: attempt a light gapi load to surface errors (no prompt)
-      try{
-        await loadGapiScript();
-        console.log('gapi script loaded');
-      }catch(e){ console.warn('gapi script load failed', e); toast('gapi script failed to load — check console for details'); }
-    });
+  // Google Sheets / Drive upload helpers removed (app is local-only per user request)
     function download(name, content){ const blob=new Blob([content], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
-  $('#exportCsv').onclick=exportCsv;
-    $('#addToHome').onclick=()=>{ alert(`Add to Home Screen:
-
-• iPhone (Safari): Share ▸ Add to Home Screen.
-• Android (Chrome): ⋮ menu ▸ Add to Home screen.
-
-This runs offline and saves to your device.`); };
+  attach('#exportCsv','click', exportCsv);
+    attach('#addToHome','click', ()=>{ alert('Add to Home Screen:\n\n• iPhone (Safari): Share ▸ Add to Home Screen.\n• Android (Chrome): ⋮ menu ▸ Add to Home screen.\n\nThis runs offline and saves to your device.'); });
     function migrate(){ if(!state.dataVersion){ state.dataVersion=3; }
       // Add ts to entries if missing
       Object.values(state.trips||{}).forEach(trip=>{ (trip.entries||[]).forEach(e=>{ if(!e.ts){ const ts=computeTs(trip.header, e.time); e.ts=ts; } }); });
       save(); }
-    function initPrefs(){ $('#prefQuickDefault').checked= !!state.settings?.quickMode; $('#prefSticky').checked = state.settings?.sticky!==false; }
+  function initPrefs(){ $('#prefQuickDefault').checked = !!(state.settings && state.settings.quickMode); $('#prefSticky').checked = ((state.settings && state.settings.sticky) !== false); }
     function savePrefs(){ state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; save(); toast('Preferences saved'); applyQuickMode(); }
-    $('#savePrefs').addEventListener('click', savePrefs);
+  attach('#savePrefs','click', savePrefs);
     function applyQuickMode(){ const quick = state.settings.quickMode; $('#quickToggle').textContent = 'Quick Mode: '+(quick?'On':'Off'); const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth','keptRel','landedYN']); $$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } }); }
-    $('#quickToggle').addEventListener('click', ()=>{ state.settings.quickMode=!state.settings.quickMode; save(); applyQuickMode(); });
+  attach('#quickToggle','click', ()=>{ state.settings.quickMode=!state.settings.quickMode; save(); applyQuickMode(); });
     function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0);} }
     function hideToast(){ const el=$('#toast'); el.style.display='none'; }
     function showUndo(){ toast('Entry deleted', true); }
     function init(){ fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); loadHeaderIntoForm(); applyQuickMode(); updateLogBadge(); }
-    $('#prefSticky').addEventListener('change', ()=>{ /* immediate reflection not needed */ });
-    $('#prefQuickDefault').addEventListener('change', ()=>{ /* just state toggle on save */ });
+  attach('#prefSticky','change', ()=>{ /* immediate reflection not needed */ });
+  attach('#prefQuickDefault','change', ()=>{ /* just state toggle on save */ });
     $('#keptRel').value='Kept';
-    $('#quickToggle').addEventListener('dblclick', ()=>{ // quick clear validation marks
+    attach('#quickToggle','dblclick', ()=>{ // quick clear validation marks
       $$('#tab-log .invalid').forEach(el=>el.classList.remove('invalid')); });
     init();
   // Download button triggers the Catch Conditions flow (useful reminder)
