@@ -15,11 +15,6 @@
   /* Brand header: full-width bar with rounded bottom and centered title + tagline */
   header { position: sticky; top:0; z-index: 30; background: linear-gradient(180deg,#0b2944,#0e1a2a); backdrop-filter: blur(6px); border-bottom: none; border-radius: 0 0 14px 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.45); }
   .bar { display:flex; gap:8px; align-items:center; padding: 14px 12px; }
-  .logo { width:56px; display:flex; align-items:center; justify-content:center; margin-right:8px; }
-  .logo img { width:48px; height:48px; display:block; }
-  /* subtle pulsing glow for logo/title/tagline */
-  .pulse { animation: pulseGlow 2.8s ease-in-out infinite; }
-  @keyframes pulseGlow{ 0%{ filter:drop-shadow(0 0 0 rgba(58,160,255,0.0)); } 50%{ filter:drop-shadow(0 6px 18px rgba(58,160,255,0.12)); } 100%{ filter:drop-shadow(0 0 0 rgba(58,160,255,0.0)); } }
   .title-container { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; width:100%; }
   .title { font-weight:900; letter-spacing:0.6px; font-size:26px; color: #eaf6ff; text-shadow: 0 3px 14px rgba(0,0,0,0.5); }
   .tagline { margin-top:4px; font-size:13px; color:var(--accent-2); opacity:0.95; font-weight:700; letter-spacing:0.6px; animation: fadeUp .85s ease both; }
@@ -74,8 +69,7 @@
   .bar { padding:10px 8px; }
   .title { font-size:18px; }
   .tagline { font-size:12px; }
-  .logo { width:40px; }
-  .logo svg { width:34px; height:34px; }
+  /* logo removed: styling not required */
   }
 
   /* Ensure date/time native controls don't overflow their container on small screens */
