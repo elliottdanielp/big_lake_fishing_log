@@ -1,4 +1,4 @@
-*.png
+# *.png
 
 # Ignore local config with credentials
 config.js
