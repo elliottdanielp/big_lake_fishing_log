@@ -118,14 +118,13 @@
       <button class="tab-btn" data-tab="settings">Settings</button>
     </div>
   </header>
-    <!-- status pill (shows save/push state) -->
-    <div style="position:relative; max-width:880px; margin:8px auto 0; padding:0 12px;">
-      <div id="saveStatus" class="pill badge" style="float:right">Saved</div>
-    </div>
   <main class="wrap">
     <section id="tab-setup" class="grid">
       <div class="card">
-        <div class="section-title">Trip header</div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="section-title">Trip header</div>
+          <div id="saveStatus" class="pill badge" style="margin-left:10px">Saved</div>
+        </div>
         <div class="grid cols-2">
           <div><label for="tripDate">Date</label><input id="tripDate" type="date" /></div>
           <div><label for="startTime">Start time</label><input id="startTime" type="time" /></div>
