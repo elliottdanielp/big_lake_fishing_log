@@ -15,8 +15,8 @@
   /* Brand header: full-width bar with rounded bottom and centered title + tagline */
   header { position: sticky; top:0; z-index: 30; background: linear-gradient(180deg,#0b2944,#0e1a2a); backdrop-filter: blur(6px); border-bottom: none; border-radius: 0 0 14px 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.45); }
   .bar { display:flex; gap:8px; align-items:center; padding: 14px 12px; }
-  .logo { width:56px; display:flex; align-items:center; justify-content:center; margin-right:8px; }
-  .logo img { width:48px; height:48px; display:block; }
+  .logo { width:96px; display:flex; align-items:center; justify-content:center; margin:0 auto; }
+  .logo img { width:88px; height:88px; display:block; border-radius:12px; }
   /* subtle pulsing glow for logo/title/tagline */
   .pulse { animation: pulseGlow 2.8s ease-in-out infinite; }
   @keyframes pulseGlow{ 0%{ filter:drop-shadow(0 0 0 rgba(58,160,255,0.0)); } 50%{ filter:drop-shadow(0 6px 18px rgba(58,160,255,0.12)); } 100%{ filter:drop-shadow(0 0 0 rgba(58,160,255,0.0)); } }
@@ -211,16 +211,10 @@
           <div>
             <label for="gps">GPS (lat, lon)</label>
             <input id="gps" placeholder="e.g., 42.10, -86.50" />
-            <div class="row">
-              <button class="btn secondary" id="getGps">Get location</button>
-              <button class="btn secondary" id="nowBtn">Now</button>
-            </div>
-            <div class="hint">Note: Geolocation may require HTTPS and user permission. If blocked, enter manually.</div>
-          </div>
-          <div><label for="notes">Notes</label><textarea id="notes" placeholder="Strike details, direction change, color tweaks, etc."></textarea></div>
-        </div>
-        <div class="card" style="background:#0f1723; border-style:dashed;">
-          <div class="section-title">Photo (fish or lure)</div>
+            <div class="bar" style="justify-content:center;">
+              <div class="logo pulse" aria-hidden="true">
+                <img src="assets/reel_record_logo.png" alt="Reel Record logo" />
+              </div>
           <input id="photoInput" type="file" accept="image/*" capture="environment" />
           <div class="hint">Tip: On iPhone/Android this opens the camera. We compress before saving to keep storage light.</div>
           <div class="thumb-row">
