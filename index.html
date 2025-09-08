@@ -14,9 +14,10 @@
     .wrap { max-width: 880px; margin:0 auto; padding: 8px; }
   /* Brand header: full-width bar with rounded bottom and centered title + tagline */
   header { position: sticky; top:0; z-index: 30; background: linear-gradient(180deg,#0b2944,#0e1a2a); backdrop-filter: blur(6px); border-bottom: none; border-radius: 0 0 14px 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.45); }
-  .bar { display:flex; gap:8px; align-items:center; padding: 14px 12px; }
-  .logo { width:100%; max-width:220px; display:flex; align-items:center; justify-content:center; margin:0 auto; }
-  .logo img { width:100%; height:auto; max-width:220px; display:block; border-radius:12px; }
+  .bar { display:flex; gap:8px; align-items:center; padding: 8px 12px; }
+  /* make the logo span the header width while keeping aspect ratio */
+  .logo { width:100%; max-width:none; display:flex; align-items:center; justify-content:center; margin:0 auto; }
+  .logo img { width:100%; height:auto; max-height:110px; object-fit:contain; display:block; border-radius:8px; }
   /* subtle pulsing glow for logo/title/tagline */
   .pulse { animation: pulseGlow 2.8s ease-in-out infinite; }
   @keyframes pulseGlow{ 0%{ filter:drop-shadow(0 0 0 rgba(58,160,255,0.0)); } 50%{ filter:drop-shadow(0 6px 18px rgba(58,160,255,0.12)); } 100%{ filter:drop-shadow(0 0 0 rgba(58,160,255,0.0)); } }
@@ -77,6 +78,9 @@
   .logo { width:40px; }
   .logo svg { width:34px; height:34px; }
   }
+
+  /* Ensure date/time native controls don't overflow their container on small screens */
+  input[type="date"], input[type="time"]{ max-width:100%; box-sizing:border-box; }
   /* iPhone 15 Pro specific (approx CSS device width 393px) */
   @media(max-width:400px){
     input, select, textarea, button { padding:10px; font-size:15px; border-radius:10px; }
