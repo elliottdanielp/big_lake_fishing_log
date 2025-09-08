@@ -1,0 +1,50 @@
+UI suggestions (prioritized)
+
+Move primary actions to a bottom FAB or bottom nav
+
+Rationale: thumb reachability on iPhone is better at the bottom.
+Hint: add a fixed bottom bar with Add Entry / Catch Conditions / Export buttons in index.html.
+Compact "Quick Log" mode (single-row card)
+
+Rationale: minimize taps while fishing — time, platform, species, depth, GPS, photo.
+Hint: collapse advanced grids into a single compact form and surface full form with a “More” link.
+Prominent Save / Sync indicator
+
+Rationale: let users know data is saved locally and whether a remote push succeeded.
+Hint: small status pill near header (Saved • Pushed at 12:34), update after save/push.
+One-tap camera capture with preview overlay
+
+Rationale: photo is important; minimize friction capturing and confirming a shot.
+Hint: reuse #photoInput but show a full-screen camera overlay on iOS Safari via CSS modal.
+Inline validation + subtle haptics cue
+
+Rationale: quick correction without modal alerts; haptics on iPhone for missing required fields.
+Hint: highlight invalid fields and show compact toast; optionally call navigator.vibrate().
+Condensed entries list (compact rows + swipe actions)
+
+Rationale: more entries visible; swipe left = delete, right = duplicate/edit.
+Hint: change table rows to card-like list with touch handlers.
+Station/Conditions quick panel
+
+Rationale: at dock, single tap to fetch station + populate header; show source/timestamp inline.
+Hint: turn #marineSource into a collapsible panel with “Apply / Undo”.
+Show TripID and pushed status in header
+
+Rationale: traceability if you push full-trip to Sheets.
+Hint: add small badge in Trip header populated after push.
+Undo & history affordances
+
+Rationale: mistakes happen on the boat; make undo immediate, not hidden in toast.
+Hint: persistent small “Undo” icon near the toast that expands into a short action list.
+Improve contrast & touch sizes for critical inputs
+
+Rationale: glare and wet fingers reduce accuracy.
+Hint: increase hit areas to 44px, ensure text contrast meets AA.
+Map view for entries (optional)
+
+Rationale: visualize GPS points across the trip.
+Hint: add a lightweight map tile (Leaflet or static images) showing pins from entries[].gps.
+Accessibility: label hints and large-text mode
+
+Rationale: easier reading in bright sun and for older eyes.
+Hint: add a pref to enlarge fonts and expand spacing.

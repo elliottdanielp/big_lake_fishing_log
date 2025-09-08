@@ -90,6 +90,11 @@
   html,body{ overflow-x:hidden; }
   /* highlight for auto-filled fields */
   .auto-filled { outline: 2px solid var(--accent-2); box-shadow: 0 10px 30px rgba(46,208,162,0.12); transition: box-shadow .35s, outline .35s; }
+  /* bottom action bar (mobile thumb-friendly) */
+  #bottomBar { position: fixed; left: 12px; right: 12px; bottom: 18px; display:flex; gap:8px; justify-content:space-between; align-items:center; z-index:60; }
+  #bottomBar .bar-btn { flex:1; padding:12px 10px; border-radius:14px; font-size:16px; }
+  #saveStatus { margin-left:10px; min-width:120px; text-align:center; }
+  @media(min-width:721px){ #bottomBar{ display:none; } }
   </style>
 </head>
 <body>
@@ -113,6 +118,10 @@
       <button class="tab-btn" data-tab="settings">Settings</button>
     </div>
   </header>
+    <!-- status pill (shows save/push state) -->
+    <div style="position:relative; max-width:880px; margin:8px auto 0; padding:0 12px;">
+      <div id="saveStatus" class="pill badge" style="float:right">Saved</div>
+    </div>
   <main class="wrap">
     <section id="tab-setup" class="grid">
       <div class="card">
@@ -338,6 +347,12 @@
     <button class="btn secondary close" id="lightboxClose">Close</button>
   </div>
   <div id="toast"></div>
+  <!-- Mobile bottom action bar -->
+  <div id="bottomBar">
+    <button id="bbAddEntry" class="btn bar-btn good">Add Entry</button>
+    <button id="bbConditions" class="btn bar-btn">Conditions</button>
+    <button id="bbExport" class="btn bar-btn secondary">Export</button>
+  </div>
   <script>
   // Ensure all event listeners are attached after DOM is loaded
   const $ = (sel) => document.querySelector(sel);
@@ -377,7 +392,7 @@
               state.trips[cur].header.lastLat = lat;
               state.trips[cur].header.lastLon = lon;
               state.trips[cur].header.lastFetchedAt = Date.now();
-              save();
+              save(); indicateSaved();
             }
             const el = document.getElementById('conditionsCached');
             if (el) el.textContent = new Date().toLocaleString() + ' • ' + lat + ', ' + lon;
@@ -447,7 +462,7 @@
                     if(dateEl && !dateEl.value){ const localDate = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0'); dateEl.value = localDate; if(cur && state.trips[cur]) state.trips[cur].header.date = localDate; }
                     if(timeEl && !timeEl.value){ const t = now.toTimeString().slice(0,5); timeEl.value = t; if(cur && state.trips[cur]) state.trips[cur].header.startTime = t; }
                     // persist the header after auto-filling
-                    save();
+                    save(); indicateSaved();
                   }catch(e){ console.warn('auto-fill port/date failed', e); }
                 }
 
@@ -509,11 +524,11 @@
                     toast('Conditions cached (local) — values auto-filled. <button class="btn secondary" id="undoMarineBtn">Undo</button>', true);
                     setTimeout(hideToast, 8000);
                     // wire undo button once shown
-                    setTimeout(()=>{ const b = document.getElementById('undoMarineBtn'); if(b) b.addEventListener('click', ()=>{ if(pendingMarineUndo && pendingMarineUndo.id){ const id = pendingMarineUndo.id; state.trips[id].header = pendingMarineUndo.prevHeader || {}; save(); loadHeaderIntoForm(); const ms2 = document.getElementById('marineSource'); if(ms2) ms2.textContent = 'Source: —'; pendingMarineUndo = null; toast('Auto-fill undone'); setTimeout(hideToast, 1600); } }); }, 50);
+                    setTimeout(()=>{ const b = document.getElementById('undoMarineBtn'); if(b) b.addEventListener('click', ()=>{ if(pendingMarineUndo && pendingMarineUndo.id){ const id = pendingMarineUndo.id; state.trips[id].header = pendingMarineUndo.prevHeader || {}; save(); indicateSaved(); loadHeaderIntoForm(); const ms2 = document.getElementById('marineSource'); if(ms2) ms2.textContent = 'Source: —'; pendingMarineUndo = null; toast('Auto-fill undone'); setTimeout(hideToast, 1600); } }); }, 50);
                   }catch(e){ console.warn('failed to persist marine source', e); }
                 }
               }catch(e){ console.warn('marine fetch error', e); }
-              save();
+              save(); indicateSaved();
             }catch(err){
               console.warn('Weather fetch failed', err);
             }
@@ -566,6 +581,11 @@
   const lightboxEl = $('#lightbox');
   if (lightboxEl) lightboxEl.addEventListener('click', (e) => { if (e.target && e.target.id === 'lightbox') { lightboxEl.classList.add('hide'); } });
       attach('#exportCsv', 'click', exportCsv);
+
+  // Wire mobile bottom bar buttons (if present)
+  attach('#bbAddEntry', 'click', ()=>{ const b=$('#addEntry'); if(b) b.click(); });
+  attach('#bbConditions', 'click', ()=>{ const b=$('#fetchConditions'); if(b) b.click(); });
+  attach('#bbExport', 'click', ()=>{ const b=$('#exportCsv'); if(b) b.click(); });
 
       // Tab switching for top nav
       // Primary tab handlers: add both per-button and delegated handler for robustness
@@ -755,6 +775,8 @@
   let pendingMarineUndo = null;
     function defaults(){ return { Platform:["Downrigger","Dipsy","Copper","Leadcore","Planer","Flatline"], LineType:["Wire","Braid","Mono","Fluorocarbon","Copper","Leadcore"], LureType:["Spoon","Plug","Flasher/Fly","Meat Rig","Spin-n-Glow","Other"], Species:["Chinook (King)","Coho","Steelhead","Lake Trout","Brown Trout","Other"], TrollDirection:["N","NE","E","SE","S","SW","W","NW"], Clouds:["Clear","Partly","Overcast","Fog"], HookLocation:["Jaw","Corner","Tongue","Outside"] }; }
   function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+  // small helper to indicate saved status in the UI
+  function indicateSaved(){ try{ const s = document.getElementById('saveStatus'); if(!s) return; s.textContent = 'Saved • ' + new Date().toLocaleTimeString(); s.style.opacity = '1'; setTimeout(()=>{ s.textContent = 'Saved'; }, 2500); }catch(e){} }
     function load(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)); }catch(e){ return null; } }
     const DB_NAME='blfl-db', DB_VER=1;
     function openDB(){ return new Promise((resolve,reject)=>{ const req=indexedDB.open(DB_NAME,DB_VER); req.onupgradeneeded=()=>{ const db=req.result; if(!db.objectStoreNames.contains('photos')) db.createObjectStore('photos',{keyPath:'id'}); }; req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); }
@@ -765,12 +787,13 @@
     function fillSelect(id, arr){ const el=$(id); el.innerHTML = '<option value="">—</option>' + arr.map(v=>`<option>${v}</option>`).join(''); }
     function fillAllSelects(){ fillSelect('#platform', state.lists.Platform); fillSelect('#lineType', state.lists.LineType); fillSelect('#lureType', state.lists.LureType); fillSelect('#species', state.lists.Species); fillSelect('#trollDir', state.lists.TrollDirection); fillSelect('#clouds', state.lists.Clouds); fillSelect('#hookLoc', state.lists.HookLocation); }
     function listsToTextarea(){ $('#listPlatform').value = state.lists.Platform.join('\n'); $('#listLineType').value = state.lists.LineType.join('\n'); $('#listLureType').value = state.lists.LureType.join('\n'); $('#listSpecies').value = state.lists.Species.join('\n'); $('#listTrollDir').value = state.lists.TrollDirection.join('\n'); $('#listClouds').value = state.lists.Clouds.join('\n'); $('#listHookLoc').value = state.lists.HookLocation.join('\n'); }
-  function textareaToLists(){ const split=t=>t.split('\n').map(s=>s.trim()).filter(Boolean); state.lists.Platform=split($('#listPlatform').value); state.lists.LineType=split($('#listLineType').value); state.lists.LureType=split($('#listLureType').value); state.lists.Species=split($('#listSpecies').value); state.lists.TrollDirection=split($('#listTrollDir').value); state.lists.Clouds=split($('#listClouds').value); state.lists.HookLocation=split($('#listHookLoc').value); save(); fillAllSelects(); }
+  function textareaToLists(){ const split=t=>t.split('\n').map(s=>s.trim()).filter(Boolean); state.lists.Platform=split($('#listPlatform').value); state.lists.LineType=split($('#listLineType').value); state.lists.LureType=split($('#listLureType').value); state.lists.Species=split($('#listSpecies').value); state.lists.TrollDirection=split($('#listTrollDir').value); state.lists.Clouds=split($('#listClouds').value); state.lists.HookLocation=split($('#listHookLoc').value); save(); indicateSaved(); fillAllSelects(); }
   // (Removed duplicate event listeners for #saveLists and #restoreDefaults)
     function currentTripId(){ return $('#tripSelect').value || null; }
-  function ensureTrip(){ let id=currentTripId(); if(!id){ id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; $('#tripSelect').value=id; save(); refreshTripSelect(); } return id; }
+  function ensureTrip(){ let id=currentTripId(); if(!id){ id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; $('#tripSelect').value=id; save(); indicateSaved(); refreshTripSelect(); } return id; }
   function refreshTripSelect(){ const sel=$('#tripSelect'); const opts=Object.values(state.trips).sort((a,b)=>{ const ad=(b.header && b.header.date) || ''; const bd=(a.header && a.header.date) || ''; return ad.localeCompare(bd); }); sel.innerHTML = opts.map(t=>`<option value="${t.id}">${(t.header && t.header.date)||'(no date)'} • ${ (t.header && t.header.port) || 'Port'}</option>`).join(''); }
   function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value }; state.trips[id].updatedAt=Date.now(); save(); refreshTripSelect(); $('#tripSelect').value=id; alert('Trip header saved.'); }
+  
   // (Removed duplicate event listeners for #saveTrip, #newTrip, #tripSelect)
   function loadHeaderIntoForm(){ const t=state.trips[currentTripId()]; if(!t) return; const h=t.header||{}; $('#tripDate').value=h.date||''; $('#startTime').value=h.startTime||''; $('#port').value=h.port||''; $('#boat').value=h.boat||''; $('#crew').value=h.crew||''; $('#hours').value=h.hours||''; $('#airTemp').value=h.airTemp||''; $('#surfaceTemp').value=h.surfaceTemp||''; $('#wind').value=h.wind||''; $('#waves').value=h.waves||''; $('#clouds').value=h.clouds||''; }
   // (Removed duplicate event listener for #platform)
@@ -793,17 +816,17 @@
           ['lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','lineType','lineStrength'].forEach(id=>{/*sticky implies leave value*/});
         } else { /* will clear below */ }
       }
-      t.updatedAt=Date.now(); save(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); if(editingEntryId){ setEditing(false); clearCatchForm(false); } else { clearCatchForm(!state.settings.sticky); }
+  t.updatedAt=Date.now(); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); if(editingEntryId){ setEditing(false); clearCatchForm(false); } else { clearCatchForm(!state.settings.sticky); }
     }
   function clearCatchForm(clearSticky){ $$('#tab-log input, #tab-log textarea, #tab-log select').forEach(el=>{ if(['time'].includes(el.id)) { setNow(); return; } if(!clearSticky && ['lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','lineType','lineStrength'].includes(el.id)) return; if(['platform','trollDir','species','keptRel','landedYN','hookLoc','waterDepth','targetDepth'].includes(el.id)) { el.value=''; } else if(el.tagName==='TEXTAREA' || el.tagName==='INPUT' || el.tagName==='SELECT'){ el.value=''; } }); $('#keptRel').value='Kept'; $$('.cond').forEach(x=>x.classList.add('hide')); pendingPhotoDataURL=''; photoInput.value=''; photoPreview.classList.add('hide'); photoPreview.src=''; }
   // (Removed duplicate event listener for #resetForm)
   async function renderEntries(){ const t=state.trips[currentTripId()]; const tbody=$('#entriesTable tbody'); if(!t){ tbody.innerHTML=''; return; } const rows=await Promise.all(t.entries.map(async e=>{ const lure=[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '); const depths=[`W:${e.waterDepth||'-'}`,`T:${e.targetDepth||'-'}`,(e.platform==='Downrigger'?`B:${e.ballDepth||'-'}`:'')].filter(Boolean).join(' / '); const dirSpd=[e.trollDir, e.speedBall?`${e.speedBall} mph`:''].filter(Boolean).join(' • '); const wl=[e.landed||'-', e.keptRel||'-'].join('/'); let photoCell=''; if(e.photo){ const durl=await getPhoto(e.id); photoCell = durl ? `<img src="${durl}" class="thumb" alt="thumb" data-view="${e.id}"/>` : '📷'; } else { photoCell=''; } return `<tr><td>${e.time||''}</td><td><span class="pill badge">${e.platform||''}</span></td><td>${photoCell}</td><td>${lure}</td><td>${depths}</td><td>${dirSpd}</td><td>${e.species||''}</td><td>${wl}</td><td style="text-align:right;white-space:nowrap"><button class="btn secondary" data-edit="${e.id}">Edit</button> <button class="btn secondary" data-viewbtn="${e.id}">View</button> <button class="btn secondary" data-del="${e.id}">Delete</button></td></tr>`; })); tbody.innerHTML = rows.join(''); $$('button[data-del]').forEach(b=> b.onclick = ()=>{ delEntry(b.dataset.del); }); $$('button[data-viewbtn]').forEach(b=> b.onclick = ()=>{ openLightbox(b.dataset.viewbtn); }); $$('button[data-edit]').forEach(b=> b.onclick = ()=>{ startEdit(b.dataset.edit); }); $$('img[data-view]').forEach(img=> img.onclick = ()=>{ openLightbox(img.dataset.view); }); }
   function loadEntryIntoForm(e, duplicate=false){ ['time','platform','trollDir','waterDepth','ballDepth','ballWeight','dipsySize','dipsySetting','copperLen','leadcoreColors','targetDepth','lineOut','lineType','lineStrength','leaderLen','lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','speedBall','sog','strikeDepthSeen','species','lengthIn','weightLb','keptRel','landedYN','hookLoc','gps','notes'].forEach(id=>{ const el=$('#'+id); if(el && e[id.replace('landedYN','landed')]) el.value = e[id.replace('landedYN','landed')] ?? ''; }); if(e.platform) $('#platform').dispatchEvent(new Event('change')); if(!duplicate){ editingEntryId=e.id; setEditing(true); pendingPhotoDataURL=''; photoPreview.classList.add('hide'); photoPreview.src=''; } }
   function startEdit(id){ const t=state.trips[currentTripId()]; if(!t) return; const e=t.entries.find(x=>x.id===id); if(!e) return; loadEntryIntoForm(e,false); toast('Editing entry'); }
-  async function delEntry(id){ const t=state.trips[currentTripId()]; if(!t) return; const e=t.entries.find(x=>x.id===id); if(!e) return; const photoData = e.photo ? await getPhoto(e.id) : null; t.entries = t.entries.filter(x=>x.id!==id); save(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); scheduleUndo({ entry:e, photo:photoData }); }
+  async function delEntry(id){ const t=state.trips[currentTripId()]; if(!t) return; const e=t.entries.find(x=>x.id===id); if(!e) return; const photoData = e.photo ? await getPhoto(e.id) : null; t.entries = t.entries.filter(x=>x.id!==id); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); scheduleUndo({ entry:e, photo:photoData }); }
   function scheduleUndo(payload){ pendingDelete=payload; showUndo(); if(undoTimer) clearTimeout(undoTimer); undoTimer=setTimeout(()=>{ finalizeDelete(); }, UNDO_MS); }
   function finalizeDelete(){ if(!pendingDelete) return; if(pendingDelete.entry.photo){ deletePhoto(pendingDelete.entry.id).catch(()=>{}); } pendingDelete=null; hideToast(); }
-  function undoDelete(){ if(!pendingDelete) return; const t=state.trips[currentTripId()]; if(!t){ pendingDelete=null; return; } t.entries.push(pendingDelete.entry); save(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); pendingDelete=null; hideToast(); toast('Restored'); }
+  function undoDelete(){ if(!pendingDelete) return; const t=state.trips[currentTripId()]; if(!t){ pendingDelete=null; return; } t.entries.push(pendingDelete.entry); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); pendingDelete=null; hideToast(); toast('Restored'); }
     async function openLightbox(entryId){ const durl = await getPhoto(entryId); if(!durl){ alert('No photo for this entry.'); return; } $('#lightboxImg').src=durl; $('#lightbox').classList.remove('hide'); }
   // lightbox handlers are attached inside DOMContentLoaded above (guarded). Duplicate handlers removed.
     function renderSummary(){ const t=state.trips[currentTripId()]; const box=$('#summary'); if(!t||!t.entries.length){ box.innerHTML='<span class="muted">No entries yet.</span>'; return; } const h=t.header||{}; const n=t.entries.length; const landed=t.entries.filter(e=>e.landed==='Y').length; const kept=t.entries.filter(e=>e.keptRel==='Kept').length; const bestWaterDepth=mode(t.entries.map(e=>e.waterDepth).filter(Number.isFinite)); const bestTargetDepth=mode(t.entries.map(e=>e.targetDepth).filter(Number.isFinite)); const bestLureType=mode(t.entries.map(e=>e.lureType).filter(Boolean)); const bestColor=mode(t.entries.map(e=>e.lureColor).filter(Boolean)); const bestDir=mode(t.entries.map(e=>e.trollDir).filter(Boolean)); const lengths=t.entries.map(e=>e.lengthIn).filter(Number.isFinite); const weights=t.entries.map(e=>e.weightLb).filter(Number.isFinite); const avg=(arr)=> (arr.length? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1):''); const chips=[`Date: <b>${h.date||'-'}</b>`,`Port: <b>${h.port||'-'}</b>`,`Crew: <b>${h.crew||'-'}</b>`,`Entries: <b>${n}</b>`,`Landed: <b>${landed}</b>`,`Kept: <b>${kept}</b>`,`Best water depth: <b>${bestWaterDepth||'-'}</b>`,`Best target depth: <b>${bestTargetDepth||'-'}</b>`,`Best direction: <b>${bestDir||'-'}</b>`,`Best lure: <b>${bestLureType||'-'}</b>`,`Best color: <b>${bestColor||'-'}</b>`]; if(lengths.length>=2) chips.push(`Avg length: <b>${avg(lengths)} in</b>`); if(weights.length>=2) chips.push(`Avg weight: <b>${avg(weights)} lb</b>`); box.innerHTML='<div class="grid cols-3">'+chips.map(c=>`<div class="chip">${c}</div>`).join('')+'</div>'; }
@@ -937,19 +960,19 @@
     attach('#addToHome','click', ()=>{ alert('Add to Home Screen:\n\n• iPhone (Safari): Share ▸ Add to Home Screen.\n• Android (Chrome): ⋮ menu ▸ Add to Home screen.\n\nThis runs offline and saves to your device.'); });
     function migrate(){ if(!state.dataVersion){ state.dataVersion=3; }
       // Add ts to entries if missing
-      Object.values(state.trips||{}).forEach(trip=>{ (trip.entries||[]).forEach(e=>{ if(!e.ts){ const ts=computeTs(trip.header, e.time); e.ts=ts; } }); });
-      save(); }
+  Object.values(state.trips||{}).forEach(trip=>{ (trip.entries||[]).forEach(e=>{ if(!e.ts){ const ts=computeTs(trip.header, e.time); e.ts=ts; } }); });
+  save(); indicateSaved(); }
   function initPrefs(){ $('#prefQuickDefault').checked = !!(state.settings && state.settings.quickMode); $('#prefSticky').checked = ((state.settings && state.settings.sticky) !== false); }
-  function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; const st = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : ''; state.settings.stationJsonTemplate = st; save(); toast('Preferences saved'); applyQuickMode(); }
+  function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; const st = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : ''; state.settings.stationJsonTemplate = st; save(); indicateSaved(); toast('Preferences saved'); applyQuickMode(); }
   // persist sheet web app settings when saving prefs
   function loadSheetPrefsIntoForm(){ try{ const el = $('#sheetWebAppUrl'); if(el) el.value = (state.settings && state.settings.sheetWebAppUrl) || ''; }catch(e){} try{ const s = $('#sheetSecret'); if(s) s.value = (state.settings && state.settings.sheetSecret) || ''; }catch(e){} }
   // update savePrefs to persist new fields
   const _oldSavePrefs = savePrefs;
-  savePrefs = function(){ _oldSavePrefs(); state.settings.sheetWebAppUrl = ($('#sheetWebAppUrl') && $('#sheetWebAppUrl').value) ? $('#sheetWebAppUrl').value.trim() : ''; state.settings.sheetSecret = ($('#sheetSecret') && $('#sheetSecret').value) ? $('#sheetSecret').value.trim() : ''; save(); toast('Preferences saved'); };
+  savePrefs = function(){ _oldSavePrefs(); state.settings.sheetWebAppUrl = ($('#sheetWebAppUrl') && $('#sheetWebAppUrl').value) ? $('#sheetWebAppUrl').value.trim() : ''; state.settings.sheetSecret = ($('#sheetSecret') && $('#sheetSecret').value) ? $('#sheetSecret').value.trim() : ''; save(); indicateSaved(); toast('Preferences saved'); };
   // reattach handler so the button invokes the updated savePrefs wrapper
   attach('#savePrefs','click', savePrefs);
     function applyQuickMode(){ const quick = state.settings.quickMode; $('#quickToggle').textContent = 'Quick Mode: '+(quick?'On':'Off'); const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth','keptRel','landedYN']); $$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } }); }
-  attach('#quickToggle','click', ()=>{ state.settings.quickMode=!state.settings.quickMode; save(); applyQuickMode(); });
+  attach('#quickToggle','click', ()=>{ state.settings.quickMode=!state.settings.quickMode; save(); indicateSaved(); applyQuickMode(); });
     function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0);} }
     function hideToast(){ const el=$('#toast'); el.style.display='none'; }
     function showUndo(){ toast('Entry deleted', true); }
