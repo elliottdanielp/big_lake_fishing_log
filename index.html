@@ -933,7 +933,7 @@
     
   // Google Sheets / Drive upload helpers removed (app is local-only per user request)
     function download(name, content){ const blob=new Blob([content], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
-  attach('#exportCsv','click', exportCsv);
+  
     attach('#addToHome','click', ()=>{ alert('Add to Home Screen:\n\n• iPhone (Safari): Share ▸ Add to Home Screen.\n• Android (Chrome): ⋮ menu ▸ Add to Home screen.\n\nThis runs offline and saves to your device.'); });
     function migrate(){ if(!state.dataVersion){ state.dataVersion=3; }
       // Add ts to entries if missing
@@ -941,7 +941,6 @@
       save(); }
   function initPrefs(){ $('#prefQuickDefault').checked = !!(state.settings && state.settings.quickMode); $('#prefSticky').checked = ((state.settings && state.settings.sticky) !== false); }
   function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; const st = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : ''; state.settings.stationJsonTemplate = st; save(); toast('Preferences saved'); applyQuickMode(); }
-  attach('#savePrefs','click', savePrefs);
   // persist sheet web app settings when saving prefs
   function loadSheetPrefsIntoForm(){ try{ const el = $('#sheetWebAppUrl'); if(el) el.value = (state.settings && state.settings.sheetWebAppUrl) || ''; }catch(e){} try{ const s = $('#sheetSecret'); if(s) s.value = (state.settings && state.settings.sheetSecret) || ''; }catch(e){} }
   // update savePrefs to persist new fields

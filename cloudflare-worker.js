@@ -111,37 +111,64 @@ function parseOceanText(text){
   if(waveIdx === -1) waveIdx = dateCols; // spec/ocean may differ, we'll scan values
 
   // Scan recent data lines (from newest to older) looking for non-MM numeric values
+  // Heuristics: SST usually between -5 and 30 °C; wave height usually 0..20 m.
   let sst = null, wave = null, ts = Date.now();
-  for(let i = dataLines.length - 1; i >= 0 && (sst===null || wave===null); i--){
+  for (let i = dataLines.length - 1; i >= 0 && (sst === null || wave === null); i--) {
     const parts = dataLines[i].trim().split(/\s+/);
-    // if parts shorter than expected skip
-    if(parts.length <= Math.max(sstIdx, waveIdx)) continue;
-    const rawSst = parts[sstIdx];
-    const rawWave = parts[waveIdx];
-    if(sst===null && rawSst && rawSst !== 'MM'){
-      const v = parseFloat(rawSst);
-      if(!isNaN(v)) sst = v;
+    if (!parts.length) continue;
+
+    // Try header-index-based picks first (if indices are in range)
+    if (sst === null && sstIdx >= 0 && sstIdx < parts.length) {
+      const rawSst = parts[sstIdx];
+      if (rawSst && rawSst !== 'MM') {
+        const v = parseFloat(rawSst);
+        if (!isNaN(v)) sst = v;
+      }
     }
-    if(wave===null && rawWave && rawWave !== 'MM'){
-      const v = parseFloat(rawWave);
-      if(!isNaN(v)) wave = v;
+    if (wave === null && waveIdx >= 0 && waveIdx < parts.length) {
+      const rawWave = parts[waveIdx];
+      if (rawWave && rawWave !== 'MM') {
+        const v = parseFloat(rawWave);
+        if (!isNaN(v)) wave = v;
+      }
     }
+
+    // If indices were ambiguous (often equal) or values missing, scan numeric columns
+    if (sst === null || wave === null) {
+      for (let c = Math.max(0, dateCols); c < parts.length && (sst === null || wave === null); c++) {
+        const tok = parts[c];
+        if (!tok || tok === 'MM') continue;
+        const v = parseFloat(tok);
+        if (isNaN(v)) continue;
+        // candidate for SST
+        if (sst === null && v > -10 && v < 40) {
+          // likely SST/C or water temp; accept
+          sst = v;
+          continue;
+        }
+        // candidate for wave (meters)
+        if (wave === null && v >= 0 && v < 50) {
+          // plausible wave height in meters (allow up to 50 to be permissive)
+          wave = v;
+          continue;
+        }
+      }
+    }
+
     // Attempt to parse timestamp from this row if possible
-    if(parts.length >= 5){
-      // NDBC often uses: YY MM DD hh mm ... OR YYYY MM DD hh mm
-      try{
+    if (parts.length >= 5) {
+      try {
         let year = parseInt(parts[0]);
         let idx = 0;
-        if(year < 100){ year = 2000 + year; idx = 0; }
-        else { idx = 0; }
-        const maybeMonth = parseInt(parts[idx+1]);
-        const maybeDay = parseInt(parts[idx+2]);
-        const maybeHour = parseInt(parts[idx+3]);
-        const maybeMin = parseInt(parts[idx+4]);
-        if(!isNaN(year) && !isNaN(maybeMonth) && !isNaN(maybeDay) && !isNaN(maybeHour) && !isNaN(maybeMin)){
-          ts = Date.UTC(year, maybeMonth-1, maybeDay, maybeHour, maybeMin);
+        if (year < 100) year = 2000 + year;
+        const maybeMonth = parseInt(parts[idx + 1]);
+        const maybeDay = parseInt(parts[idx + 2]);
+        const maybeHour = parseInt(parts[idx + 3]);
+        const maybeMin = parseInt(parts[idx + 4]);
+        if (!isNaN(year) && !isNaN(maybeMonth) && !isNaN(maybeDay) && !isNaN(maybeHour) && !isNaN(maybeMin)) {
+          ts = Date.UTC(year, maybeMonth - 1, maybeDay, maybeHour, maybeMin);
         }
-      }catch(e){ /* ignore */ }
+      } catch (e) { /* ignore */ }
     }
   }
 
