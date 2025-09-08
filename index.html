@@ -114,8 +114,7 @@
     <div class="tabs" role="tablist">
       <button class="tab-btn active" data-tab="setup">Trip Setup</button>
   <button class="tab-btn" data-tab="log">Catch Log <span id="logCountBadge" class="badge-count" style="display:none">0</span></button>
-      <button class="tab-btn" data-tab="review">Review & Export</button>
-      <button class="tab-btn" data-tab="settings">Settings</button>
+  <button class="tab-btn" data-tab="review">Review & Export</button>
     </div>
   </header>
   <main class="wrap">
@@ -337,6 +336,9 @@
     </section>
   </main>
   <div style="max-width:880px;margin:14px auto 6px;padding:6px 12px;text-align:center;">
+    <div style="margin-bottom:8px">
+      <button class="btn secondary" id="mainSettingsBtn" type="button" title="Open Settings">Settings</button>
+    </div>
     <button class="btn secondary" id="addToHome" title="How to add to Home Screen">Add to Home</button>
     <div class="muted" style="margin-top:8px;font-size:14px;">Tip: On iPhone use Safari ▸ Share ▸ Add to Home Screen</div>
   </div>
@@ -594,7 +596,7 @@
           // set active class
           $$('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
           // hide/show sections
-          ['setup','log','review','settings'].forEach(name => {
+          ['setup','log','review'].forEach(name => {
             const el = document.getElementById('tab-' + name);
             if (!el) return;
             if (name === tab) el.classList.remove('hide'); else el.classList.add('hide');
@@ -611,7 +613,7 @@
         if (!btn) return;
         const tab = btn.dataset.tab || 'setup';
         $$('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-        ['setup','log','review','settings'].forEach(name => {
+  ['setup','log','review'].forEach(name => {
           const el = document.getElementById('tab-' + name);
           if (!el) return;
           if (name === tab) el.classList.remove('hide'); else el.classList.add('hide');
@@ -619,6 +621,20 @@
         if (tab === 'review') { renderSummary(); renderAnalytics(); }
         if (tab === 'log') { renderEntries(); }
         
+      });
+
+      // Main-column Settings button (above Add to Home) — show settings panel when tapped
+      attach('#mainSettingsBtn', 'click', (e) => {
+        // deactivate top tab buttons
+        $$('.tab-btn').forEach(b => b.classList.toggle('active', false));
+        // mark none active, but visually we can highlight nothing in top nav; ensure settings section visible
+        ['setup','log','review','settings'].forEach(name => {
+          const el = document.getElementById('tab-' + name);
+          if (!el) return;
+          if (name === 'settings') el.classList.remove('hide'); else el.classList.add('hide');
+        });
+        // scroll into view for easier thumb access
+        const s = document.getElementById('tab-settings'); if(s) s.scrollIntoView({behavior:'smooth', block:'start'});
       });
 
       // Add any other button listeners here as needed
