@@ -5,77 +5,82 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Dee-lite | Grand Haven Offshore Playbook (v2)</title>
 <style>
-  :root {
-    --bg: #ffffff;
-    --fg: #111827;
-    --muted: #6b7280;
-    --accent: #0a6cff;
-    --card: #f8fafc;
-    --border: #e5e7eb;
-    --btn: #0a6cff;
-    --btn-fg: #ffffff;
-  }
-  [data-theme="night"] {
-    --bg: #0b1220;
-    --fg: #e6eefc;
-    --muted: #9fb2d3;
-    --accent: #19e1d6;
-    --card: #101a2b;
-    --border: #1c2740;
-    --btn: #16c7bd;
-    --btn-fg: #0b1220;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
-         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; line-height: 1.38; }
-  header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--border);
-           padding: 10px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  header h1 { font-size: 20px; margin: 0 12px 0 0; }
-  .boatname { font-weight: 800; margin-right: 6px; }
-  nav a { display: inline-block; margin-right: 8px; padding: 6px 10px; text-decoration: none;
-           color: var(--accent); background: var(--card); border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
-  .spacer { flex: 1 1 auto; }
-  .btn { background: var(--btn); color: var(--btn-fg); border: none; border-radius: 10px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
-  .btn:active { opacity: 0.9; }
-  main { padding: 14px; max-width: 980px; margin: 0 auto; }
-  section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin: 14px 0; }
-  h2 { margin: 6px 0 10px; font-size: 22px; }
-  h3 { margin: 14px 0 6px; font-size: 18px; }
-  ul { margin: 6px 0 10px 20px; }
-  li { margin: 4px 0; }
-  .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
-  @media (min-width: 760px) { .grid.two { grid-template-columns: 1fr 1fr; } }
-  details { border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; background: #fff0; }
-  details summary { cursor: pointer; font-weight: 600; }
-  .small { color: var(--muted); font-size: 13px; }
-  .note { background: #fff0; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
-  .pill { display:inline-block; padding:2px 8px; border-radius: 999px; border:1px solid var(--border); background:#fff0; font-size:13px; color: var(--muted); }
-  .twocol { columns: 2; column-gap: 18px; }
-  .imgbox { border: 1px solid var(--border); border-radius: 10px; overflow:hidden; background:#00000010; }
-  .imgbox img { width: 100%; height: auto; display: block; }
-  .kbd { font-family: ui-monospace, Menlo, Consolas, monospace; background: #eef2ff20; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--border); }
-  @media (max-width: 700px) { .twocol { columns: 1; } }
-  @media print { header, .no-print { display: none !important; } section { break-inside: avoid; } }
+  :root { --bg:#0e131b; --card:#151b26; --ink:#e8eefb; --muted:#9fb0c8; --accent:#52a7ff; --accent-2:#2ed0a2; --danger:#ff6b6b; --warning:#ffd166; --good:#06d6a0; --shadow:rgba(0,0,0,.35); --radius:18px; }
+  html, body { height:100%; } body { margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,sans-serif; background:var(--bg); color:var(--ink); }
+  .wrap { max-width: 880px; margin:0 auto; padding: 8px; }
+  header { position: sticky; top:0; z-index: 30; background: linear-gradient(180deg,#0b2944,#0e1a2a); backdrop-filter: blur(6px); border-bottom: none; border-radius: 0 0 14px 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.45); }
+  .bar { display:flex; gap:8px; align-items:center; padding: 14px 12px; }
+  .title-container { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; width:100%; }
+  .title { font-weight:900; letter-spacing:0.6px; font-size:26px; color: #eaf6ff; text-shadow: 0 3px 14px rgba(0,0,0,0.5); }
+  .tagline { margin-top:4px; font-size:13px; color:var(--accent-2); opacity:0.95; font-weight:700; letter-spacing:0.6px; }
+  .tabs { display:flex; gap:8px; overflow:auto; padding: 6px 8px 12px; }
+  .tab-btn { flex:1; text-align:center; border:1px solid #26364c; background:#111622; color:var(--muted); padding:16px 0; border-radius:16px; font-weight:700; font-size:18px; }
+  .tab-btn.active { color:#fff; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(82,167,255,.15) inset; }
+  .card { background:var(--card); border:1px solid #243349; border-radius: var(--radius); box-shadow: 0 8px 24px var(--shadow); padding:18px; }
+  .grid { display:grid; grid-template-columns: 1fr; gap: 18px; } @media(min-width:720px){ .grid.cols-2{ grid-template-columns: 1fr 1fr; } .grid.cols-3{ grid-template-columns: repeat(3,1fr);} }
+  .grid > div { min-width:0; }
+  label { display:block; font-size: 16px; color: var(--muted); margin-bottom:8px; font-weight:600; } input, select, textarea, button { width:100%; box-sizing:border-box; border-radius:16px; border:1.5px solid #2a3b54; background:#0c111a; color:#fff; padding:18px; font-size:20px; margin-bottom:8px; }
+  select { padding-right:24px; } textarea { min-height:100px; }
+  .row { display:flex; gap:14px; } .row > * { flex:1; } .chip { display:inline-flex; align-items:center; gap:8px; background:#0c111a; border:1.5px dashed #2f3f57; padding:12px 14px; border-radius:999px; font-size:16px; color:var(--muted); }
+  .muted { color:var(--muted); font-size:16px; } .hint { font-size:15px; color:#8cabd8; margin-top:8px; }
+  .btn { background:linear-gradient(180deg,#0e7eed,#0a5fc1); border:none; font-weight:800; letter-spacing:.3px; cursor:pointer; font-size:20px; padding:18px 0; border-radius:16px; }
+  .btn.secondary { background:#0c111a; border:1.5px solid #2b3e59; color:#cfe3ff; } .btn.good { background:linear-gradient(180deg,#14bd8d,#0da77a); }
+  .btn.warn { background:linear-gradient(180deg,#ffb703,#f77f00); } .btn.danger { background:linear-gradient(180deg,#ff4d4d,#bf2e2e); }
+  table { width:100%; border-collapse: collapse; } th, td { padding:16px; border-bottom:1.5px solid #223145; text-align:left; font-size:18px; }
+  th { color:#b8cdf1; font-weight:800; font-size:18px; position: sticky; top:0; background:#162133; z-index:1; } tr:hover td { background:#121b2b; }
+  .pill { padding:8px 14px; border-radius:9999px; font-size:16px; display:inline-block; } .pill.badge { background:#0c111a; border:1.5px solid #2f3f57; color:#b9c9e3; }
+  .spacer { height:16px; } .section-title { font-weight:900; letter-spacing:.4px; font-size:24px; } .footer { color:var(--muted); text-align:center; font-size:16px; padding:18px 0 32px; }
+  .hide { display:none !important; }
+  .thumb { width:90px; height:90px; object-fit:cover; border-radius:14px; border:1.5px solid #2a3b54; }
+  .thumb-row { display:flex; gap:14px; align-items:center; }
+  .lightbox { position:fixed; inset:0; background:rgba(0,0,0,.85); display:flex; align-items:center; justify-content:center; padding:20px; z-index:9999; }
+  .lightbox img { max-width:95vw; max-height:85vh; border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.6); }
+  .lightbox .close { position:absolute; top:14px; right:14px; }
+  .invalid { border-color: var(--danger)!important; }
+  .badge-count { background:var(--accent); color:#fff; font-size:16px; padding:4px 10px; border-radius:999px; margin-left:10px; line-height:1; }
+  .quick-hidden { display:none !important; }
+  .prefs-row { display:flex; gap:16px; flex-wrap:wrap; }
+  .switch { position:relative; display:inline-flex; align-items:center; gap:8px; font-size:18px; cursor:pointer; }
+  .switch input { width:auto; accent-color: var(--accent); }
+  #analytics { font-size:16px; line-height:1.5; }
+  #analytics h4 { margin:10px 0 4px; font-size:18px; letter-spacing:.5px; text-transform:uppercase; color:var(--muted); }
+  .spark { display:inline-block; background:var(--accent); height:14px; margin-right:4px; border-radius:4px; }
+  #toast { position:fixed; left:50%; transform:translateX(-50%); bottom:24px; background:#142032; color:#fff; padding:16px 24px; border:1.5px solid #21405c; border-radius:18px; box-shadow:0 6px 16px rgba(0,0,0,.4); display:none; z-index:99999; font-size:18px; }
+  #toast button { width:auto; padding:10px 16px; margin-left:14px; font-size:18px; }
+  @media(max-width:420px){ input, select, textarea, button { padding:12px; font-size:16px; border-radius:12px; } .tab-btn { font-size:16px; padding:12px 8px; border-radius:14px; } .grid.cols-2, .grid.cols-3 { grid-template-columns: 1fr !important; } .row { flex-direction:column; } .card { padding:14px; } .section-title { font-size:20px; } .tabs { gap:6px; padding:6px 6px 8px; } #toast { font-size:16px; padding:12px 18px; bottom:18px; } header { border-radius: 0 0 10px 10px; } .bar { padding:10px 8px; } .title { font-size:18px; } .tagline { font-size:12px; } }
+  input[type="date"], input[type="time"]{ max-width:100%; box-sizing:border-box; }
+  input, select, textarea { max-width:100%; box-sizing:border-box; }
+  @media(max-width:420px){ input, select, textarea { padding:10px 12px; font-size:15px; } .bar { height:84px; } }
+  @media(max-width:400px){ input, select, textarea, button { padding:10px; font-size:15px; border-radius:10px; } .tab-btn { font-size:15px; padding:10px 8px; } .section-title { font-size:18px; } .card { padding:12px; } input, select, textarea { max-width:100%; box-sizing:border-box; } }
+  html,body{ overflow-x:hidden; }
+  .auto-filled { outline: 2px solid var(--accent-2); box-shadow: 0 10px 30px rgba(46,208,162,0.12); transition: box-shadow .35s, outline .35s; }
+  #bottomBar { position: fixed; left: 12px; right: 12px; bottom: 18px; display:flex; gap:8px; justify-content:space-between; align-items:center; z-index:60; }
+  #bottomBar .bar-btn { flex:1; padding:12px 10px; border-radius:14px; font-size:16px; }
+  @media(min-width:721px){ #bottomBar{ display:none; } }
 </style>
 </head>
-<body>
 <header>
-  <h1><span class="boatname">Dee-lite</span> | Grand Haven Offshore Guide (v2)</h1>
-  <nav class="no-print">
-    <a href="#playbook">Playbook</a>
-    <a href="#quickref">Quick Ref</a>
-    <a href="#loadouts">Loadouts</a>
-    <a href="#walleye">Walleye</a>
-    <a href="#checklists">Checklists</a>
-    <a href="#electronics">Electronics</a>
-    <a href="#downriggers">Downriggers</a>
-  <a href="reel-record.html">Log (Reel-Record)</a>
-  </nav>
-  <div class="spacer"></div>
-  <button id="themeBtn" class="btn no-print">Night Mode</button>
+  <div class="bar" style="justify-content:center; padding:10px 0;">
+    <div class="title-container">
+      <div class="title">Dee-lite</div>
+      <div class="tagline">Grand Haven Offshore Playbook (v2)</div>
+    </div>
+  </div>
+  <div style="position:absolute; left:12px; top:14px;">
+    <a href="reel-record.html" class="btn secondary" style="padding:8px 12px; font-size:14px; border-radius:10px;">Log (Reel-Record)</a>
+  </div>
+  <div class="tabs" role="tablist" style="padding-top:6px; padding-bottom:6px;">
+    <a class="tab-btn" href="#playbook">Playbook</a>
+    <a class="tab-btn" href="#quickref">Quick Ref</a>
+    <a class="tab-btn" href="#loadouts">Loadouts</a>
+    <a class="tab-btn" href="#walleye">Walleye</a>
+    <a class="tab-btn" href="#checklists">Checklists</a>
+    <a class="tab-btn" href="#electronics">Electronics</a>
+    <a class="tab-btn" href="#downriggers">Downriggers</a>
+  </div>
 </header>
 
-<main>
+<main class="wrap">
   <section id="hero">
     <div class="grid two">
       <div class="note">
@@ -93,12 +98,12 @@
     <ul>
       <li>Work 90-140 FOW (inside 75-90 at first light; slide deeper mid-morning).</li>
       <li>Thermocline focus: Kings 42-50 F; Coho 50-55 F; Steelhead 55-62 F.</li>
-      <li>Cline often 50-80 ft down—verify on Helix.</li>
+      <li>Thermocline often 50-80 ft down—verify on Helix.</li>
       <li>Troll N/S with light S-turns, 2.4-2.7 mph SOG.</li>
     </ul>
 
     <details open>
-      <summary>Four Rod "A Spread" (Kings/Coho)</summary>
+      <summary>4 Rod "A Spread" (Kings/Coho)</summary>
       <div class="grid">
         <div>
           <h3>Rigger #1 (deeper king rod)</h3>
@@ -126,7 +131,7 @@
     </details>
 
     <details>
-      <summary>Alt "B Spread" (Steelhead/Coho)</summary>
+      <summary>4  "B Spread" (Steelhead/Coho)</summary>
       <ul>
         <li>Rigger 40-50 ft: spoon, 50-60 ft lead.</li>
         <li>Rigger 25-35 ft: orange/UV spoon, 55 ft lead.</li>
@@ -217,10 +222,10 @@
       </div>
       <div>
         <h3>Changeups</h3>
-        <ol>
+        <ul>
           <li>Speed +/- 0.2-0.3 mph</li><li>Direction/turns</li><li>Swap one bait</li>
           <li>Color glow -> UV -> natural</li><li>Move rigger 10 ft</li><li>Slide grid</li>
-        </ol>
+        </ul>
         <h3>Helix 8 G3N (2D)</h3>
         <ul><li>SwitchFire Max; 200 kHz; Sens 12-14; Surf 4-5; Noise Low/Off; Chart 4-5; RTS On.</li></ul>
       </div>
@@ -317,24 +322,21 @@
   </section>
 </main>
 
+<!-- day/night toggle removed; index now uses unified reel-record styling -->
 <script>
-(function() {
-  const btn = document.getElementById('themeBtn');
-  const saved = localStorage.getItem('dee_theme') || 'day';
-  if (saved === 'night') document.documentElement.setAttribute('data-theme','night');
-  btn.textContent = (saved === 'night') ? 'Day Mode' : 'Night Mode';
-  btn.addEventListener('click', function() {
-    const isNight = document.documentElement.getAttribute('data-theme') === 'night';
-    if (isNight) {
-      document.documentElement.removeAttribute('data-theme');
-      btn.textContent = 'Night Mode';
-      localStorage.setItem('dee_theme', 'day');
-    } else {
-      document.documentElement.setAttribute('data-theme', 'night');
-      btn.textContent = 'Day Mode';
-      localStorage.setItem('dee_theme', 'night');
-    }
-  });
+// Highlight active tab in Playbook header
+(function(){
+  const tabs = Array.from(document.querySelectorAll('.tabs .tab-btn'));
+  function setActiveFromHash(){
+    const h = (location.hash || '#playbook').replace('#','');
+    tabs.forEach(t=>{
+      const href = (t.getAttribute('href')||'').replace('#','');
+      if(href === h) t.classList.add('active'); else t.classList.remove('active');
+    });
+  }
+  tabs.forEach(t=> t.addEventListener('click', () => setTimeout(setActiveFromHash, 50)));
+  window.addEventListener('hashchange', setActiveFromHash);
+  setActiveFromHash();
 })();
 </script>
 </body>

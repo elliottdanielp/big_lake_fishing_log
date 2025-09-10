@@ -1,6 +1,7 @@
 const CACHE_NAME = 'blfl-shell-v1';
 const PRECACHE_URLS = [
   'index.html',
+  'reel-record.html',
   'Fishing_Log.html',
   'README.md',
   'Link.txt',
@@ -29,15 +30,39 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET') return; // only handle GET
   const url = new URL(req.url);
 
-  // Navigation requests: network-first, fallback to cached index.html
+  // Navigation requests: network-first with short timeout, fallback to cached index.html
   if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
-    event.respondWith(
-      fetch(req).then(response => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
-        return response;
-      }).catch(() => caches.match('/index.html'))
-    );
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const cachedIndex = await cache.match('index.html');
+
+      // Kick off network fetch that also updates cache when it completes
+      const networkFetch = fetch(req).then(async (networkResp) => {
+        try { await cache.put(req, networkResp.clone()); } catch (e) { /* ignore cache put errors */ }
+        return networkResp;
+      }).catch(() => null);
+
+      // If network is slow, fall back to cached index after timeout (ms)
+      const TIMEOUT_MS = 2500;
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), TIMEOUT_MS));
+
+      // Race network vs timeout
+      const fastResp = await Promise.race([networkFetch, timeoutPromise]);
+      if (fastResp) return fastResp;
+
+      // Network didn't respond quickly — return cached shell if available and update cache in background
+      if (cachedIndex) {
+        // ensure the network fetch still runs in background to refresh cache
+        networkFetch.then(()=>{});
+        return cachedIndex;
+      }
+
+      // No cached shell — wait for network (or fail)
+      const finalNetwork = await networkFetch;
+      if (finalNetwork) return finalNetwork;
+      // As a last resort return a simple 503 response
+      return new Response('Service Unavailable', { status: 503, statusText: 'Service Unavailable' });
+    })());
     return;
   }
 
