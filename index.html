@@ -332,24 +332,48 @@
 
   <section id="downriggers">
     <h2>Cannon Magnum 10 / 10A Notes</h2>
-  <div class="grid cols-2">
+    <div class="grid cols-2">
       <div>
-    <h3>Setup Tips on Dee-lite</h3>
-    <ul>
-      <li>Use a snubber with 15 lb balls; check clutch tension so it slips on snags.</li>
-      <li>Calibrate depth once at your usual troll speed to estimate blowback.</li>
-      <li>Laker mode: tick bottom; King mode: 5-10 ft below arcs or just under the thermocline.</li>
-      <li>Rigger leads: Spoons 40-60; Flasher/Fly 15-25; Meat 10-20 ft. Stackers or free sliders add a second bait.</li>
-    </ul>
-    <div>
-        <h3>Troubleshooting</h3>
+        <h3>Setup Tips on Dee-lite</h3>
         <ul>
-          <li>Motor won't run: check battery connections and voltage (12V, 10A fuse).</li>
-          <li>Clutch slips: tighten clutch knob; ensure line is properly wound.</li>
-          <li>Line won't release: check for obstructions; ensure clutch is fully disengaged.</li>
-          <li>Depth gauge inaccurate: recalibrate using known depth or marked weights.</li>
+          <li>Use a snubber with 15 lb balls; check clutch tension so it slips on snags.</li>
+          <li>Calibrate depth once at your usual troll speed to estimate blowback.</li>
+          <li>Laker mode: tick bottom; King mode: 5-10 ft below arcs or just under the thermocline.</li>
+          <li>Rigger leads: Spoons 40-60; Flasher/Fly 15-25; Meat 10-20 ft. Stackers or free sliders add a second bait.</li>
         </ul>
+        <div>
+          <h3>Troubleshooting</h3>
+          <ul>
+            <li>Motor won't run: check battery connections and voltage (12V, 10A fuse).</li>
+            <li>Clutch slips: tighten clutch knob; ensure line is properly wound.</li>
+            <li>Line won't release: check for obstructions; ensure clutch is fully disengaged.</li>
+            <li>Depth gauge inaccurate: recalibrate using known depth or marked weights.</li>
+          </ul>
+        </div>
       </div>
+      <div>
+        <h3>Downrigger Cannonball Speed Calculator</h3>
+        <div class="grid">
+          <div>
+            <label for="riggerSog">SOG (mph)</label>
+            <input type="number" id="riggerSog" step="0.1" value="2.7" />
+          </div>
+          <div>
+            <label for="riggerWeight">Weight (lb)</label>
+            <input type="number" id="riggerWeight" step="1" value="15" />
+          </div>
+          <div>
+            <label for="riggerDepth">Depth (ft)</label>
+            <input type="number" id="riggerDepth" step="1" value="75" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="calcRiggerBtn" class="btn" type="button">Calculate speed</button>
+        </div>
+        <div id="riggerResult" class="note" style="margin-top:10px"></div>
+        <div class="small" style="margin-top:6px">Simplified model. Water density and drag assumed constant; depth is a reference input.</div>
+      </div>
+    </div>
   </section>
 
   <section id="prelaunch">
@@ -435,6 +459,36 @@
   document.querySelectorAll('[data-collapse]').forEach(btn=>{
     btn.addEventListener('click', ()=> setAll(btn.getAttribute('data-collapse'), false));
   });
+})();
+
+// Downrigger cannonball speed calculator (simplified)
+(function(){
+  function calc(){
+    const sog = parseFloat(document.getElementById('riggerSog')?.value || '0'); // mph
+    const weight = parseFloat(document.getElementById('riggerWeight')?.value || '0'); // lb
+    const depth = parseFloat(document.getElementById('riggerDepth')?.value || '0'); // ft (informational)
+    if(!isFinite(sog) || !isFinite(weight)) return;
+    const waterDensity = 62.4; // lb/ft^3
+    const dragCoeff = 0.8;     // assumed drag coefficient
+    const radiusFt = 0.167;    // ~4 in diameter -> 0.167 ft radius
+    const area = Math.PI * radiusFt * radiusFt; // frontal area ft^2
+    const vX = sog * 5280 / 3600; // mph -> ft/s
+    const vY = Math.sqrt(Math.max(0, (2 * weight) / (waterDensity * dragCoeff * area))); // ft/s
+    const vR = Math.sqrt(vX*vX + vY*vY); // ft/s
+    const mph = vR * 0.681818; // ft/s to mph
+    const knots = vR * 0.592484; // ft/s to knots
+    const el = document.getElementById('riggerResult');
+    if(!el) return;
+    el.innerHTML = `<b>Results</b><br>
+      Horizontal (ft/s): ${vX.toFixed(2)}<br>
+      Vertical (ft/s): ${vY.toFixed(2)}<br>
+      Resultant (ft/s): ${vR.toFixed(2)}<br>
+      Resultant (mph): ${mph.toFixed(2)}<br>
+      Resultant (knots): ${knots.toFixed(2)}<br>
+      <span class="small">Inputs — SOG: ${sog.toFixed(1)} mph • Weight: ${weight.toFixed(0)} lb • Depth: ${depth.toFixed(0)} ft</span>`;
+  }
+  const btn = document.getElementById('calcRiggerBtn');
+  if(btn) btn.addEventListener('click', calc);
 })();
 </script>
 </body>
