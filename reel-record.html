@@ -7,7 +7,7 @@
 	<link rel="manifest" href="manifest.json">
 	<link rel="icon" href="favicon.ico">
 	<link rel="icon" type="image/svg+xml" href="favicon.svg">
-	<link rel="apple-touch-icon" href="icon-192.svg">
+	<link rel="apple-touch-icon" href="icon-192.png">
 	<style>
 		:root { --bg:#0e131b; --card:#151b26; --ink:#e8eefb; --muted:#9fb0c8; --accent:#52a7ff; --accent-2:#2ed0a2; --danger:#ff6b6b; --warning:#ffd166; --good:#06d6a0; --shadow:rgba(0,0,0,.35); --radius:18px; }
 		html, body { height:100%; } body { margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,sans-serif; background:var(--bg); color:var(--ink); }
@@ -72,6 +72,16 @@
 	/* logo removed: styling not required */
 	}
 
+/* anchored header dropdown (dedicated icon button, not title) */
+.icon-btn { background:transparent; border:1px solid rgba(255,255,255,0.12); color:var(--ink); border-radius:12px; width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
+.icon-btn svg { width:26px; height:26px; fill:none; stroke:#e8eefb; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+.menu-list { position:absolute; top:calc(100% + 8px); left:0; min-width:240px; max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch; background:var(--card); border:1px solid #223145; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); padding:10px; z-index:60; display:flex; flex-direction:column; gap:8px; }
+.menu-list[hidden] { display:none; }
+.menu-list a { text-decoration:none; color:var(--ink); padding:12px 14px; border-radius:10px; font-weight:700; font-size:18px; }
+.menu-list a:hover, .menu-list a[aria-current="true"] { background:#0c1624; }
+@media(min-width:720px){ .menu-list { left:50%; transform:translateX(-50%); } }
+@media(max-width:520px){ .icon-btn { width:46px; height:46px; border-radius:14px; } }
+
 	/* Ensure date/time native controls don't overflow their container on small screens */
 	input[type="date"], input[type="time"]{ max-width:100%; box-sizing:border-box; }
 	/* General guard: inputs should never overflow their parent columns */
@@ -104,20 +114,26 @@
 </head>
 <body>
 	<header>
-		<div class="bar" style="justify-content:center; padding:10px 0;">
+		<div class="bar" style="justify-content:center; padding:10px 12px; position:relative;">
+			<div class="menu-anchor" style="position:absolute; left:12px; top:8px;">
+				<button id="navToggleRR" class="icon-btn" aria-expanded="false" aria-haspopup="true" aria-controls="navMenuRR" aria-label="Menu">
+					<svg viewBox="0 0 24 24" aria-hidden="true">
+						<path d="M4 6h14M4 12h14M4 18h14"/>
+						<path d="M18 7l2 2l2-2"/>
+					</svg>
+				</button>
+				<div id="navMenuRR" class="menu-list" hidden>
+					<a href="index.html#playbook" class="menu-link">Playbook</a>
+					<a href="#tab-setup" class="menu-link">Trip Setup</a>
+					<a href="#tab-log" class="menu-link">Catch Log</a>
+					<a href="#tab-review" class="menu-link">Review & Export</a>
+					<a href="#tab-settings" class="menu-link">Settings</a>
+				</div>
+			</div>
 			<div class="title-container">
-				<div class="title">-Reel-Record-</div>
+				<div class="title">Reel-Record</div>
 				<div class="tagline">Log. Learn. Land More Fish</div>
 			</div>
-		</div>
-			<!-- small reciprocal link back to Playbook index -->
-			<div style="position:absolute; left:12px; top:14px;">
-				<a href="index.html" class="btn secondary" style="padding:8px 12px; font-size:14px; border-radius:10px;">Playbook</a>
-			</div>
-		<div class="tabs" role="tablist">
-			<button class="tab-btn active" data-tab="setup">Trip Setup</button>
-	<button class="tab-btn" data-tab="log">Catch Log <span id="logCountBadge" class="badge-count" style="display:none">0</span></button>
-	<button class="tab-btn" data-tab="review">Review & Export</button>
 		</div>
 	</header>
 	<main class="wrap">
@@ -582,51 +598,26 @@
 	attach('#bbExport', 'click', ()=>{ const b=$('#exportCsv'); if(b) b.click(); });
 
 			// Tab switching for top nav
-			// Primary tab handlers: add both per-button and delegated handler for robustness
-			$$('.tab-btn').forEach(btn => {
-				btn.addEventListener('click', (e) => {
-					const tab = btn.dataset.tab || 'setup';
-					// set active class
-					$$('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-					// hide/show sections
-					['setup','log','review'].forEach(name => {
-						const el = document.getElementById('tab-' + name);
-						if (!el) return;
-						if (name === tab) el.classList.remove('hide'); else el.classList.add('hide');
-					});
-					// when switching to review or log, re-render
-					if (tab === 'review') { renderSummary(); renderAnalytics(); }
-					if (tab === 'log') { renderEntries(); }
-          
+			// Hash-based section switching (no top tab bar)
+			function showSection(name){
+				['setup','log','review','settings'].forEach(n=>{
+					const el = document.getElementById('tab-'+n);
+					if(!el) return; if(n===name) el.classList.remove('hide'); else el.classList.add('hide');
 				});
-			});
-			// Delegated handler: catches clicks on inner elements/text
-			attach('.tabs', 'click', (e) => {
-				const btn = (e.target && e.target.closest) ? e.target.closest('.tab-btn') : null;
-				if (!btn) return;
-				const tab = btn.dataset.tab || 'setup';
-				$$('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-	['setup','log','review'].forEach(name => {
-					const el = document.getElementById('tab-' + name);
-					if (!el) return;
-					if (name === tab) el.classList.remove('hide'); else el.classList.add('hide');
-				});
-				if (tab === 'review') { renderSummary(); renderAnalytics(); }
-				if (tab === 'log') { renderEntries(); }
-        
-			});
+				if(name==='review'){ renderSummary(); renderAnalytics(); }
+				if(name==='log'){ renderEntries(); }
+			}
+			function applyHash(){
+				const h = location.hash || '#tab-setup';
+				const match = /^#tab-(setup|log|review|settings)$/.exec(h);
+				showSection(match ? match[1] : 'setup');
+			}
+			window.addEventListener('hashchange', applyHash);
+			applyHash();
 
 			// Main-column Settings button (above Add to Home) — show settings panel when tapped
 			attach('#mainSettingsBtn', 'click', (e) => {
-				// deactivate top tab buttons
-				$$('.tab-btn').forEach(b => b.classList.toggle('active', false));
-				// mark none active, but visually we can highlight nothing in top nav; ensure settings section visible
-				['setup','log','review','settings'].forEach(name => {
-					const el = document.getElementById('tab-' + name);
-					if (!el) return;
-					if (name === 'settings') el.classList.remove('hide'); else el.classList.add('hide');
-				});
-				// scroll into view for easier thumb access
+				location.hash = '#tab-settings';
 				const s = document.getElementById('tab-settings'); if(s) s.scrollIntoView({behavior:'smooth', block:'start'});
 			});
 
@@ -1074,6 +1065,24 @@
 				console.warn('ServiceWorker registration failed:', err);
 			});
 		}
+
+
+	// Header menu (dedicated icon button) — focus trap, Escape, outside click
+	(function(){
+		const toggle = document.getElementById('navToggleRR');
+		const menu = document.getElementById('navMenuRR');
+		if(!toggle || !menu) return;
+		const links = Array.from(menu.querySelectorAll('a'));
+		function updateActive(){ const h = location.hash || '#tab-setup'; links.forEach(a=>{ const href=a.getAttribute('href')||''; const is=href.startsWith('#') && href===h; if(is) a.setAttribute('aria-current','true'); else a.removeAttribute('aria-current'); }); }
+		window.addEventListener('hashchange', updateActive); updateActive();
+		let lastFocused=null;
+		function open(){ lastFocused=document.activeElement; menu.hidden=false; toggle.setAttribute('aria-expanded','true'); const f=menu.querySelector('a,button'); if(f) f.focus(); document.addEventListener('click', onDoc); document.addEventListener('keydown', onKey); }
+		function close(){ menu.hidden=true; toggle.setAttribute('aria-expanded','false'); document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey); if(lastFocused) lastFocused.focus(); lastFocused=null; }
+		function onDoc(e){ if(!menu.contains(e.target) && e.target!==toggle) close(); }
+		function onKey(e){ if(e.key==='Escape'){ close(); return; } if(e.key==='Tab' && !menu.hidden){ const f=Array.from(menu.querySelectorAll('a,button')).filter(el=>!el.disabled); if(!f.length) return; const first=f[0], last=f[f.length-1]; if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } } }
+		toggle.addEventListener('click', e=>{ e.stopPropagation(); if(menu.hidden) open(); else close(); });
+		links.forEach(a=> a.addEventListener('click', ()=> setTimeout(close, 50)));
+	})();
 	</script>
 </body>
 </html>

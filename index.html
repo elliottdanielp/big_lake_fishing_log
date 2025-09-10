@@ -7,7 +7,7 @@
   <!-- iOS / PWA meta tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="apple-touch-icon" href="assets/reel_record_logo.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="manifest" href="manifest.json">
 <style>
   :root { --bg:#0e131b; --card:#151b26; --ink:#e8eefb; --muted:#9fb0c8; --accent:#52a7ff; --accent-2:#2ed0a2; --danger:#ff6b6b; --warning:#ffd166; --good:#06d6a0; --shadow:rgba(0,0,0,.35); --radius:18px; }
@@ -18,26 +18,22 @@
   .title-container { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; width:100%; }
   .title { font-weight:900; letter-spacing:0.6px; font-size:26px; color: #eaf6ff; text-shadow: 0 3px 14px rgba(0,0,0,0.5); }
   .tagline { margin-top:4px; font-size:13px; color:var(--accent-2); opacity:0.95; font-weight:700; letter-spacing:0.6px; }
-  .tabs { display:flex; gap:8px; overflow:auto; padding: 6px 8px 12px; }
-  /* dropdown menu for header title */
-  .title-menu { position:relative; display:inline-block; }
-  .menu-btn { background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--ink); padding:8px 12px; border-radius:12px; font-weight:900; font-size:20px; cursor:pointer; display:inline-flex; gap:8px; align-items:center; }
-  .menu-btn .caret { font-size:14px; opacity:0.9; }
-  .menu-list { position:absolute; left:12px; top:100%; margin-top:10px; min-width:220px; background:var(--card); border:1px solid #223145; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); padding:10px; z-index:60; display:flex; flex-direction:column; gap:8px; -webkit-overflow-scrolling:touch; }
+  /* dedicated menu button (hamburger + caret feel) */
+  .icon-btn { background:transparent; border:1px solid rgba(255,255,255,0.12); color:var(--ink); border-radius:12px; width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
+  .icon-btn svg { width:26px; height:26px; fill:none; stroke:#e8eefb; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .menu-list { position:absolute; top:calc(100% + 8px); left:0; min-width:240px; max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch; background:var(--card); border:1px solid #223145; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); padding:10px; z-index:60; display:flex; flex-direction:column; gap:8px; }
   .menu-list a { text-decoration:none; color:var(--ink); padding:12px 14px; border-radius:10px; font-weight:700; font-size:18px; }
   .menu-list a:hover { background:#0c1624; }
   @media(min-width:720px){ .menu-list { left:50%; transform:translateX(-50%); } }
 
   /* Mobile bottom sheet behavior */
   @media(max-width:520px){
-    .menu-btn { padding:12px 16px; font-size:20px; border-radius:14px; }
-    .menu-list { position:fixed; left:0; right:0; bottom:0; top:auto; margin:0; min-width:0; border-radius:12px 12px 0 0; padding:14px 12px calc(14px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:10px; }
+    .icon-btn { width:46px; height:46px; border-radius:14px; }
+    /* keep anchored dropdown on mobile (no bottom sheet) */
+    .menu-list { position:absolute; left:0; right:auto; bottom:auto; top:calc(100% + 8px); margin:0; min-width:220px; border-radius:12px; padding:10px; display:flex; flex-direction:column; gap:10px; }
     .menu-list[hidden] { display:none; }
-    .tabs { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
-    .tab-btn { padding:18px 8px; font-size:18px; }
   }
-  .tab-btn { flex:1; text-align:center; border:1px solid #26364c; background:#111622; color:var(--muted); padding:16px 0; border-radius:16px; font-weight:700; font-size:18px; }
-  .tab-btn.active { color:#fff; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(82,167,255,.15) inset; }
+  /* remove legacy tabs visuals */
   .card { background:var(--card); border:1px solid #243349; border-radius: var(--radius); box-shadow: 0 8px 24px var(--shadow); padding:18px; }
   .grid { display:grid; grid-template-columns: 1fr; gap: 18px; } @media(min-width:720px){ .grid.cols-2{ grid-template-columns: 1fr 1fr; } .grid.cols-3{ grid-template-columns: repeat(3,1fr);} }
   .grid > div { min-width:0; }
@@ -81,36 +77,29 @@
   @media(min-width:721px){ #bottomBar{ display:none; } }
 </style>
 <header>
-  <div class="bar" style="justify-content:center; padding:10px 0;">
-    <div class="title-container">
-      <div class="title-menu">
-        <button id="menuToggle" class="menu-btn" aria-expanded="false" aria-haspopup="true" aria-controls="menuList">
-          <span class="title">Dee-lite</span>
-          <span class="caret">▾</span>
-        </button>
-        <div id="menuList" class="menu-list" hidden>
-          <a href="reel-record.html" class="menu-link">Log (Reel-Record)</a>
-          <a href="#playbook" class="menu-link">Playbook</a>
-          <a href="#quickref" class="menu-link">Quick Ref</a>
-          <a href="#loadouts" class="menu-link">Loadouts</a>
-          <a href="#walleye" class="menu-link">Walleye</a>
-          <a href="#checklists" class="menu-link">Checklists</a>
-          <a href="#electronics" class="menu-link">Electronics</a>
-          <a href="#downriggers" class="menu-link">Downriggers</a>
-        </div>
+  <div class="bar" style="justify-content:center; padding:10px 12px; position:relative;">
+    <div class="menu-anchor" style="position:absolute; left:12px; top:8px;">
+      <button id="navToggle" class="icon-btn" aria-expanded="false" aria-haspopup="true" aria-controls="navMenu" aria-label="Menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 6h14M4 12h14M4 18h14"/>
+          <path d="M17 5l3 3"/>
+        </svg>
+      </button>
+      <div id="navMenu" class="menu-list" hidden>
+        <a href="reel-record.html" class="menu-link">Log (Reel-Record)</a>
+        <a href="#playbook" class="menu-link">Playbook</a>
+        <a href="#quickref" class="menu-link">Quick Ref</a>
+        <a href="#loadouts" class="menu-link">Loadouts</a>
+        <a href="#walleye" class="menu-link">Walleye</a>
+        <a href="#checklists" class="menu-link">Checklists</a>
+        <a href="#electronics" class="menu-link">Electronics</a>
+        <a href="#downriggers" class="menu-link">Downriggers</a>
       </div>
+    </div>
+    <div class="title-container">
+      <div class="title">Dee-lite</div>
       <div class="tagline">Grand Haven Offshore Playbook (v2)</div>
     </div>
-  </div>
-  <div class="tabs" role="tablist" style="padding-top:6px; padding-bottom:6px;">
-  <div class="tabs" role="tablist" style="padding-top:6px; padding-bottom:6px;">
-    <a class="tab-btn" href="#playbook">Playbook</a>
-    <a class="tab-btn" href="#quickref">Quick Ref</a>
-    <a class="tab-btn" href="#loadouts">Loadouts</a>
-    <a class="tab-btn" href="#walleye">Walleye</a>
-    <a class="tab-btn" href="#checklists">Checklists</a>
-    <a class="tab-btn" href="#electronics">Electronics</a>
-    <a class="tab-btn" href="#downriggers">Downriggers</a>
   </div>
 </header>
 
@@ -356,60 +345,47 @@
   </section>
 </main>
 
-<!-- day/night toggle removed; index now uses unified reel-record styling -->
+<!-- unified header menu (dedicated button) -->
 <script>
-// Highlight active tab in Playbook header
 (function(){
-  const tabs = Array.from(document.querySelectorAll('.tabs .tab-btn'));
-  const menuLinks = Array.from(document.querySelectorAll('.menu-list .menu-link'));
-  function setActiveFromHash(){
-    const h = (location.hash || '#playbook').replace('#','');
-    tabs.forEach(t=>{
-      const href = (t.getAttribute('href')||'').replace('#','');
-      if(href === h) t.classList.add('active'); else t.classList.remove('active');
+  const toggle = document.getElementById('navToggle');
+  const menu = document.getElementById('navMenu');
+  const links = Array.from(menu ? menu.querySelectorAll('a') : []);
+  function updateActive(){
+    const h = location.hash || '#playbook';
+    links.forEach(a=>{
+      const href = a.getAttribute('href')||'';
+      const is = href.startsWith('#') && href === h;
+      if(is) a.setAttribute('aria-current','true'); else a.removeAttribute('aria-current');
     });
   }
-  tabs.forEach(t=> t.addEventListener('click', () => setTimeout(setActiveFromHash, 50)));
-  window.addEventListener('hashchange', setActiveFromHash);
-  setActiveFromHash();
-
-  // Menu dropdown behavior
-  const menuToggle = document.getElementById('menuToggle');
-  const menuList = document.getElementById('menuList');
+  window.addEventListener('hashchange', updateActive); updateActive();
+  if(!toggle || !menu) return;
   let lastFocused = null;
-  function openMenu(){
-    lastFocused = document.activeElement;
-    menuList.hidden = false; menuToggle.setAttribute('aria-expanded','true');
-    // focus first menu item
-    const focusable = Array.from(menuList.querySelectorAll('a, button')).filter(Boolean);
-    if(focusable.length) focusable[0].focus();
-    document.addEventListener('click', outsideListener);
-    document.addEventListener('keydown', keyListener);
+  function open(){
+    lastFocused = document.activeElement; menu.hidden = false; toggle.setAttribute('aria-expanded','true');
+    const f = menu.querySelector('a,button'); if(f) f.focus();
+    document.addEventListener('click', onDocClick);
+    document.addEventListener('keydown', onKey);
   }
-  function closeMenu(){
-    menuList.hidden = true; menuToggle.setAttribute('aria-expanded','false');
-    document.removeEventListener('click', outsideListener);
-    document.removeEventListener('keydown', keyListener);
-    if(lastFocused) lastFocused.focus();
-    lastFocused = null;
+  function close(){
+    menu.hidden = true; toggle.setAttribute('aria-expanded','false');
+    document.removeEventListener('click', onDocClick);
+    document.removeEventListener('keydown', onKey);
+    if(lastFocused) lastFocused.focus(); lastFocused = null;
   }
-  function outsideListener(e){ if(!menuList.contains(e.target) && e.target !== menuToggle) closeMenu(); }
-  function keyListener(e){
-    if(e.key === 'Escape') { closeMenu(); return; }
-    // focus trap: Tab / Shift+Tab
-    if(e.key === 'Tab' && !menuList.hidden){
-      const focusable = Array.from(menuList.querySelectorAll('a, button')).filter(el => !el.hasAttribute('disabled'));
-      if(!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length-1];
-      if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
-      else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+  function onDocClick(e){ if(!menu.contains(e.target) && e.target !== toggle) close(); }
+  function onKey(e){
+    if(e.key === 'Escape') { close(); return; }
+    if(e.key === 'Tab' && !menu.hidden){
+      const f = Array.from(menu.querySelectorAll('a,button')).filter(el=>!el.disabled);
+      if(!f.length) return; const first=f[0], last=f[f.length-1];
+      if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
     }
   }
-  menuToggle.addEventListener('click', (e)=>{ e.stopPropagation(); if(menuList.hidden) openMenu(); else closeMenu(); });
-
-  // When selecting a menu link that navigates to a hash, close menu and update active state
-  menuLinks.forEach(a=> a.addEventListener('click', (ev)=>{ if(a.getAttribute('href') && a.getAttribute('href').startsWith('#')){ setTimeout(()=>{ closeMenu(); setActiveFromHash(); }, 50); } else { closeMenu(); } }));
+  toggle.addEventListener('click', (e)=>{ e.stopPropagation(); if(menu.hidden) open(); else close(); });
+  links.forEach(a=> a.addEventListener('click', ()=> setTimeout(close, 50)));
 })();
 </script>
 </body>
