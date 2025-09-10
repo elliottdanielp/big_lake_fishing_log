@@ -55,7 +55,15 @@
   .text-btn { background:transparent; border:1px solid #2b3e59; color:#cfe3ff; padding:8px 10px; border-radius:12px; font-size:14px; cursor:pointer; }
   table { width:100%; border-collapse: collapse; } th, td { padding:16px; border-bottom:1.5px solid #223145; text-align:left; font-size:18px; }
   th { color:#b8cdf1; font-weight:800; font-size:18px; position: sticky; top:0; background:#162133; z-index:1; } tr:hover td { background:#121b2b; }
-  .pill { padding:8px 14px; border-radius:9999px; font-size:16px; display:inline-block; } .pill.badge { background:#0c111a; border:1.5px solid #2f3f57; color:#b9c9e3; }
+  .pill { padding:8px 14px; border-radius:9999px; font-size:16px; display:inline-block; white-space:nowrap; }
+  .pill.badge { background:#0c111a; border:1.5px solid #2f3f57; color:#b9c9e3; }
+  /* pill variants */
+  .pill.depth { background:#0b1524; border:1.5px solid #2a5ab7; color:#cfe3ff; }
+  .pill.speed { background:#0e1a16; border:1.5px solid #1fa87a; color:#c9f7e8; }
+  .pill.temp  { background:#1b1224; border:1.5px solid #8b4ad9; color:#ecd9ff; }
+  /* responsive table wrapper */
+  .table-wrap { overflow:auto; max-width:100%; border-radius:12px; }
+  .table-wrap table { min-width:640px; table-layout:fixed; }
   .spacer { height:16px; } .section-title { font-weight:900; letter-spacing:.4px; font-size:24px; } .footer { color:var(--muted); text-align:center; font-size:16px; padding:18px 0 32px; }
   .hide { display:none !important; }
   .thumb { width:90px; height:90px; object-fit:cover; border-radius:14px; border:1.5px solid #2a3b54; }
@@ -88,12 +96,44 @@
   main.wrap > section { background:var(--card); border:1px solid #243349; border-radius: var(--radius); box-shadow: 0 8px 24px var(--shadow); padding:18px; margin:14px 8px; }
   /* remove any images inside downriggers section */
   #downriggers img { display:none !important; }
-  /* details chevrons */
-  details > summary { list-style: none; cursor: pointer; position: relative; padding-right: 18px; }
+  /* details / dropdowns */
+  details { margin: 10px 0 12px; }
+  details > summary {
+    list-style: none;
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 44px 12px 12px; /* leave room for chevron */
+    background: #0c111a;
+    border: 1.5px solid #243349;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.28);
+    font-weight: 800;
+    letter-spacing: .2px;
+  }
+  details > summary:hover { background:#111a22; border-color:#2f4a6d; }
+  details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   details > summary::-webkit-details-marker { display:none; }
-  details > summary::after { content: '▸'; position:absolute; right:0; top:2px; color:#8cabd8; transition: transform .15s ease; }
-  details[open] > summary::after { transform: rotate(90deg); }
-  .details-ctrl { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin: 6px 0 10px; }
+  details > summary::after {
+    content: '▸';
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #cfe3ff;
+    background: #0b1626;
+    border: 1px solid #2f3f57;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 14px;
+    line-height: 1;
+    transition: transform .15s ease, background .15s ease, border-color .15s ease;
+  }
+  details[open] > summary { border-color: var(--accent); box-shadow: 0 6px 18px rgba(82,167,255,.2); }
+  details[open] > summary::after { transform: translateY(-50%) rotate(90deg); background:#0e2540; border-color:#3a5e8d; }
+  
   .small { font-size: 12px; color: #9fb0c8; }
   .note { background: #0c111a; border: 1px solid #223145; border-radius: 12px; padding:10px 12px; color:#cfe3ff; }
 </style>
@@ -144,15 +184,12 @@
 <section id="playbook">
     <h2>Playbook (Salmon/Trout)</h2>
     <h3>Where and When to Start</h3>
-    <div class="details-ctrl">
-      <button class="text-btn" data-expand="#playbook">Expand all</button>
-      <button class="text-btn" data-collapse="#playbook">Collapse all</button>
-    </div>
+    
     <ul>
-      <li>Work <span class="pill badge">90–140 FOW</span> (inside 75–90 at first light; slide deeper mid‑morning).</li>
-      <li>Thermocline focus: Kings 42–50°F; Coho 50–55°F; Steelhead 55–62°F.</li>
-      <li>Thermocline often 50–80 ft down — verify on Helix.</li>
-      <li>Troll N/S with light S‑turns <span class="pill badge">2.4–2.7 mph SOG</span>.</li>
+  <li>Work <span class="pill depth">90–140 FOW</span> (inside <span class="pill depth">75–90 FOW</span> at first light; slide deeper mid‑morning).</li>
+  <li>Thermocline focus: Kings <span class="pill temp">42–50°F</span>; Coho <span class="pill temp">50–55°F</span>; Steelhead <span class="pill temp">55–62°F</span>.</li>
+  <li>Thermocline often <span class="pill depth">50–80 ft</span> down — verify on Helix.</li>
+  <li>Troll N/S with light S‑turns <span class="pill speed">2.4–2.7 mph SOG</span>.</li>
     </ul>
 
     <details>
@@ -160,11 +197,11 @@
   <div class="grid cols-2">
         <div>
           <h3>Rigger #1 (deeper king rod)</h3>
-          <ul>
-    <li>Depth <span class="pill badge">65–80 ft</span> (or 5–10 ft below marks); lead 15–25 ft.</li>
+      <ul>
+    <li>Depth <span class="pill depth">65–80 ft</span> (or 5–10 ft below marks); lead 15–25 ft.</li>
             <li>8-11 in flasher+fly or meat (green/glow, chrome-green, blue bubble).</li>
             <li>Free slider 10-12 ft up with mag spoon (NBK, Green Dolphin, UV blue/silver).</li>
-    <li>~<span class="pill badge">2.2–2.5 mph</span> at the ball (SOG 2.4–2.7).</li>
+  <li>~<span class="pill speed">2.2–2.5 mph</span> at the ball (SOG 2.4–2.7).</li>
           </ul>
           <h3>Rigger #2 (spoon utility)</h3>
           <ul>
@@ -174,9 +211,9 @@
         </div>
         <div>
           <h3>Copper Boards</h3>
-          <ul>
-    <li><strong>Port (deeper, 300):</strong> J‑plug glow green ladderback or flasher+fly; ~<span class="pill badge">70–80 ft</span> @ <span class="pill badge">2.5 mph</span>.</li>
-    <li><strong>Starboard (mid, 200–250):</strong> mag spoon or 8 in flasher+fly; ~<span class="pill badge">50–70 ft</span> @ <span class="pill badge">2.5 mph</span>.</li>
+      <ul>
+    <li><strong>Port (deeper, 300):</strong> J‑plug glow green ladderback or flasher+fly; ~<span class="pill depth">70–80 ft</span> @ <span class="pill speed">2.5 mph</span>.</li>
+    <li><strong>Starboard (mid, 200–250):</strong> mag spoon or 8 in flasher+fly; ~<span class="pill depth">50–70 ft</span> @ <span class="pill speed">2.5 mph</span>.</li>
             <li>Deeper piece to inside of S-turns (slower side).</li>
           </ul>
         </div>
@@ -207,11 +244,7 @@
   <section id="walleye">
     <h2>Walleye Patterns (Lake Michigan - Grand Haven/Holland)</h2>
     <p class="small">Use your Ninja boards and rig light leaders when targeting eyes. Slow down compared to salmon speeds.</p>
-    <div class="grid cols-2">
-      <div class="details-ctrl">
-        <button class="text-btn" data-expand="#walleye">Expand all</button>
-        <button class="text-btn" data-collapse="#walleye">Collapse all</button>
-      </div>
+  <div class="grid cols-2">
       <div>
         <h3>When & Where</h3>
         <ul>
@@ -268,7 +301,7 @@
       <div>
         <h3>Start Grid (Salmon/Trout)</h3>
         <ul>
-      <li><span class="pill badge">90–140 FOW</span> (75–90 early); cline 50–80 down; SOG <span class="pill badge">2.4–2.7</span>.</li>
+  <li><span class="pill depth">90–140 FOW</span> (75–90 early); cline <span class="pill depth">50–80 ft</span> down; SOG <span class="pill speed">2.4–2.7</span>.</li>
           <li>Speeds: FF/Meat 2.2-2.5; Spoons 2.5-3.0; Plugs 2.4-2.8.</li>
         </ul>
         <h3>Walleye Quick</h3>
@@ -362,6 +395,7 @@
     <details>
       <summary><strong>Quick Reference Chart</strong></summary>
       <div class="card" style="padding:0">
+        <div class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -476,6 +510,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
         <div class="small" style="padding:0 16px 14px">Tip: To find the thermocline, switch 2D to Max Mode and raise Sensitivity until a thin line appears; run baits 10–15 ft above it.</div>
       </div>
     </details>
@@ -603,20 +638,7 @@
   links.forEach(a=> a.addEventListener('click', ()=> setTimeout(close, 50)));
 })();
 
-// Expand / collapse all details controls
-(function(){
-  function setAll(sectionSel, open){
-    const root = document.querySelector(sectionSel);
-    if(!root) return;
-    root.querySelectorAll('details').forEach(d=>{ d.open = !!open; });
-  }
-  document.querySelectorAll('[data-expand]').forEach(btn=>{
-    btn.addEventListener('click', ()=> setAll(btn.getAttribute('data-expand'), true));
-  });
-  document.querySelectorAll('[data-collapse]').forEach(btn=>{
-    btn.addEventListener('click', ()=> setAll(btn.getAttribute('data-collapse'), false));
-  });
-})();
+ 
 
 // Downrigger cannonball speed calculator (simplified)
 (function(){
