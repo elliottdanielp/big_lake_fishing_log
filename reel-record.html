@@ -1062,6 +1062,46 @@
 		}catch(e){ toast('Debug failed'); console.warn('debugStationJson failed', e); }
 	});
 	attach('#downloadConditions','click', ()=>{ if($('#fetchConditions')) $('#fetchConditions').click(); });
+	// Manage Data actions — Clear current, Clear ALL, Delete trip
+	attach('#clearTrip','click', async ()=>{
+		const id = currentTripId(); if(!id) return alert('No trip selected');
+		const t = state.trips[id]; if(!t) return;
+		if(!confirm('Clear all entries for this trip? This cannot be undone.')) return;
+		try{ for(const e of t.entries){ if(e.photo){ try{ await deletePhoto(e.id); }catch(_){} } } }catch(_){ }
+		t.entries = [];
+		save(); indicateSaved();
+		renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge();
+		toast('Trip entries cleared'); setTimeout(hideToast, 1600);
+	});
+
+	attach('#clearAll','click', async ()=>{
+		if(!confirm('Clear ALL trips and photos on this device? This cannot be undone.')) return;
+		// Clear photos store completely
+		try{
+			const db = await openDB();
+			await new Promise((res,rej)=>{ const tx=db.transaction('photos','readwrite'); const st=tx.objectStore('photos'); st.clear(); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); });
+		}catch(_){ }
+		state.trips = {};
+		save(); refreshTripSelect();
+		// Create a fresh blank trip to keep UI stable
+		ensureTrip(); loadHeaderIntoForm();
+		renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge();
+		toast('All trips cleared'); setTimeout(hideToast, 1600);
+	});
+
+	attach('#deleteTrip','click', async ()=>{
+		const id = currentTripId(); if(!id) return alert('No trip selected');
+		const t = state.trips[id]; if(!t) return;
+		if(!confirm('Delete this trip and its photos? This cannot be undone.')) return;
+		try{ for(const e of t.entries){ if(e.photo){ try{ await deletePhoto(e.id); }catch(_){} } } }catch(_){ }
+		delete state.trips[id];
+		save(); refreshTripSelect();
+		const keys = Object.keys(state.trips);
+		if(keys.length){ $('#tripSelect').value = keys[0]; } else { ensureTrip(); }
+		loadHeaderIntoForm(); indicateSaved();
+		renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge();
+		toast('Trip deleted'); setTimeout(hideToast, 1600);
+	});
 		// Register service worker for offline support (if available)
 		if ('serviceWorker' in navigator) {
 			// use relative path so it works on GitHub Pages project pages
