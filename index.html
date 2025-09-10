@@ -4,16 +4,38 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Dee-lite | Grand Haven Offshore Playbook (v2)</title>
+  <!-- iOS / PWA meta tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="assets/reel_record_logo.png">
+  <link rel="manifest" href="manifest.json">
 <style>
   :root { --bg:#0e131b; --card:#151b26; --ink:#e8eefb; --muted:#9fb0c8; --accent:#52a7ff; --accent-2:#2ed0a2; --danger:#ff6b6b; --warning:#ffd166; --good:#06d6a0; --shadow:rgba(0,0,0,.35); --radius:18px; }
   html, body { height:100%; } body { margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,sans-serif; background:var(--bg); color:var(--ink); }
-  .wrap { max-width: 880px; margin:0 auto; padding: 8px; }
+  .wrap { max-width: 880px; margin:0 auto; padding: calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom)); }
   header { position: sticky; top:0; z-index: 30; background: linear-gradient(180deg,#0b2944,#0e1a2a); backdrop-filter: blur(6px); border-bottom: none; border-radius: 0 0 14px 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.45); }
   .bar { display:flex; gap:8px; align-items:center; padding: 14px 12px; }
   .title-container { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; width:100%; }
   .title { font-weight:900; letter-spacing:0.6px; font-size:26px; color: #eaf6ff; text-shadow: 0 3px 14px rgba(0,0,0,0.5); }
   .tagline { margin-top:4px; font-size:13px; color:var(--accent-2); opacity:0.95; font-weight:700; letter-spacing:0.6px; }
   .tabs { display:flex; gap:8px; overflow:auto; padding: 6px 8px 12px; }
+  /* dropdown menu for header title */
+  .title-menu { position:relative; display:inline-block; }
+  .menu-btn { background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--ink); padding:8px 12px; border-radius:12px; font-weight:900; font-size:20px; cursor:pointer; display:inline-flex; gap:8px; align-items:center; }
+  .menu-btn .caret { font-size:14px; opacity:0.9; }
+  .menu-list { position:absolute; left:12px; top:100%; margin-top:10px; min-width:220px; background:var(--card); border:1px solid #223145; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); padding:10px; z-index:60; display:flex; flex-direction:column; gap:8px; -webkit-overflow-scrolling:touch; }
+  .menu-list a { text-decoration:none; color:var(--ink); padding:12px 14px; border-radius:10px; font-weight:700; font-size:18px; }
+  .menu-list a:hover { background:#0c1624; }
+  @media(min-width:720px){ .menu-list { left:50%; transform:translateX(-50%); } }
+
+  /* Mobile bottom sheet behavior */
+  @media(max-width:520px){
+    .menu-btn { padding:12px 16px; font-size:20px; border-radius:14px; }
+    .menu-list { position:fixed; left:0; right:0; bottom:0; top:auto; margin:0; min-width:0; border-radius:12px 12px 0 0; padding:14px 12px calc(14px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:10px; }
+    .menu-list[hidden] { display:none; }
+    .tabs { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+    .tab-btn { padding:18px 8px; font-size:18px; }
+  }
   .tab-btn { flex:1; text-align:center; border:1px solid #26364c; background:#111622; color:var(--muted); padding:16px 0; border-radius:16px; font-weight:700; font-size:18px; }
   .tab-btn.active { color:#fff; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(82,167,255,.15) inset; }
   .card { background:var(--card); border:1px solid #243349; border-radius: var(--radius); box-shadow: 0 8px 24px var(--shadow); padding:18px; }
@@ -58,17 +80,29 @@
   #bottomBar .bar-btn { flex:1; padding:12px 10px; border-radius:14px; font-size:16px; }
   @media(min-width:721px){ #bottomBar{ display:none; } }
 </style>
-</head>
 <header>
   <div class="bar" style="justify-content:center; padding:10px 0;">
     <div class="title-container">
-      <div class="title">Dee-lite</div>
+      <div class="title-menu">
+        <button id="menuToggle" class="menu-btn" aria-expanded="false" aria-haspopup="true" aria-controls="menuList">
+          <span class="title">Dee-lite</span>
+          <span class="caret">▾</span>
+        </button>
+        <div id="menuList" class="menu-list" hidden>
+          <a href="reel-record.html" class="menu-link">Log (Reel-Record)</a>
+          <a href="#playbook" class="menu-link">Playbook</a>
+          <a href="#quickref" class="menu-link">Quick Ref</a>
+          <a href="#loadouts" class="menu-link">Loadouts</a>
+          <a href="#walleye" class="menu-link">Walleye</a>
+          <a href="#checklists" class="menu-link">Checklists</a>
+          <a href="#electronics" class="menu-link">Electronics</a>
+          <a href="#downriggers" class="menu-link">Downriggers</a>
+        </div>
+      </div>
       <div class="tagline">Grand Haven Offshore Playbook (v2)</div>
     </div>
   </div>
-  <div style="position:absolute; left:12px; top:14px;">
-    <a href="reel-record.html" class="btn secondary" style="padding:8px 12px; font-size:14px; border-radius:10px;">Log (Reel-Record)</a>
-  </div>
+  <div class="tabs" role="tablist" style="padding-top:6px; padding-bottom:6px;">
   <div class="tabs" role="tablist" style="padding-top:6px; padding-bottom:6px;">
     <a class="tab-btn" href="#playbook">Playbook</a>
     <a class="tab-btn" href="#quickref">Quick Ref</a>
@@ -327,6 +361,7 @@
 // Highlight active tab in Playbook header
 (function(){
   const tabs = Array.from(document.querySelectorAll('.tabs .tab-btn'));
+  const menuLinks = Array.from(document.querySelectorAll('.menu-list .menu-link'));
   function setActiveFromHash(){
     const h = (location.hash || '#playbook').replace('#','');
     tabs.forEach(t=>{
@@ -337,6 +372,44 @@
   tabs.forEach(t=> t.addEventListener('click', () => setTimeout(setActiveFromHash, 50)));
   window.addEventListener('hashchange', setActiveFromHash);
   setActiveFromHash();
+
+  // Menu dropdown behavior
+  const menuToggle = document.getElementById('menuToggle');
+  const menuList = document.getElementById('menuList');
+  let lastFocused = null;
+  function openMenu(){
+    lastFocused = document.activeElement;
+    menuList.hidden = false; menuToggle.setAttribute('aria-expanded','true');
+    // focus first menu item
+    const focusable = Array.from(menuList.querySelectorAll('a, button')).filter(Boolean);
+    if(focusable.length) focusable[0].focus();
+    document.addEventListener('click', outsideListener);
+    document.addEventListener('keydown', keyListener);
+  }
+  function closeMenu(){
+    menuList.hidden = true; menuToggle.setAttribute('aria-expanded','false');
+    document.removeEventListener('click', outsideListener);
+    document.removeEventListener('keydown', keyListener);
+    if(lastFocused) lastFocused.focus();
+    lastFocused = null;
+  }
+  function outsideListener(e){ if(!menuList.contains(e.target) && e.target !== menuToggle) closeMenu(); }
+  function keyListener(e){
+    if(e.key === 'Escape') { closeMenu(); return; }
+    // focus trap: Tab / Shift+Tab
+    if(e.key === 'Tab' && !menuList.hidden){
+      const focusable = Array.from(menuList.querySelectorAll('a, button')).filter(el => !el.hasAttribute('disabled'));
+      if(!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length-1];
+      if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    }
+  }
+  menuToggle.addEventListener('click', (e)=>{ e.stopPropagation(); if(menuList.hidden) openMenu(); else closeMenu(); });
+
+  // When selecting a menu link that navigates to a hash, close menu and update active state
+  menuLinks.forEach(a=> a.addEventListener('click', (ev)=>{ if(a.getAttribute('href') && a.getAttribute('href').startsWith('#')){ setTimeout(()=>{ closeMenu(); setActiveFromHash(); }, 50); } else { closeMenu(); } }));
 })();
 </script>
 </body>
