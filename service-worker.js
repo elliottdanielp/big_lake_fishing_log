@@ -1,4 +1,4 @@
-const CACHE_NAME = 'blfl-shell-v1';
+const CACHE_NAME = 'blfl-shell-v3';
 const PRECACHE_URLS = [
   'index.html',
   'reel-record.html',
@@ -7,14 +7,28 @@ const PRECACHE_URLS = [
   'Link.txt',
   'manifest.json',
   'icon-192.svg',
-  'icon-512.svg'
+  'icon-512.svg',
+  // App icons (png) commonly referenced by manifest on some platforms
+  'icon-192.png',
+  'icon-512.png'
 ];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_URLS))
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    // Add each asset individually and ignore failures (e.g., optional images not present)
+    await Promise.allSettled(PRECACHE_URLS.map(async (url) => {
+      try {
+        const resp = await fetch(url, { cache: 'no-cache' });
+        if (resp && resp.ok) {
+          await cache.put(url, resp.clone());
+        }
+      } catch (e) {
+        // ignore missing/failed fetches to keep install resilient
+      }
+    }));
+  })());
 });
 
 self.addEventListener('activate', event => {
