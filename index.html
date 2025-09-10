@@ -18,12 +18,19 @@
   .title-container { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; width:100%; }
   .title { font-weight:900; letter-spacing:0.6px; font-size:26px; color: #eaf6ff; text-shadow: 0 3px 14px rgba(0,0,0,0.5); }
   .tagline { margin-top:4px; font-size:13px; color:var(--accent-2); opacity:0.95; font-weight:700; letter-spacing:0.6px; }
+  h2 { font-size:24px; margin: 6px 0 8px; }
+  h3 { font-size:20px; margin: 10px 0 6px; }
+  ul { padding-left: 18px; }
+  ul li { line-height: 1.6; margin: 4px 0; }
   /* dedicated menu button (hamburger + caret feel) */
   .icon-btn { background:transparent; border:1px solid rgba(255,255,255,0.12); color:var(--ink); border-radius:12px; width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
   .icon-btn svg { width:26px; height:26px; fill:none; stroke:#e8eefb; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
-  .menu-list { position:absolute; top:calc(100% + 8px); left:0; min-width:240px; max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch; background:var(--card); border:1px solid #223145; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); padding:10px; z-index:60; display:flex; flex-direction:column; gap:8px; }
+  .menu-list { position:absolute; top:calc(100% + 8px); left:0; min-width:240px; max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch; background:var(--card); border:1px solid #223145; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); padding:10px; z-index:60; display:flex; flex-direction:column; gap:8px; opacity:0; transform: translateY(4px) scale(0.98); transition: opacity .12s ease, transform .12s ease; }
+  .menu-list.open { opacity:1; transform: translateY(0) scale(1); }
   .menu-list a { text-decoration:none; color:var(--ink); padding:12px 14px; border-radius:10px; font-weight:700; font-size:18px; }
   .menu-list a:hover { background:#0c1624; }
+  .menu-label { font-size:12px; letter-spacing:.6px; text-transform:uppercase; color:#89a2c4; padding:6px 8px 2px; }
+  .menu-sep { height:1px; background:#223145; margin:6px 4px; border-radius:1px; }
   @media(min-width:720px){ .menu-list { left:50%; transform:translateX(-50%); } }
 
   /* Mobile bottom sheet behavior */
@@ -35,7 +42,8 @@
   }
   /* remove legacy tabs visuals */
   .card { background:var(--card); border:1px solid #243349; border-radius: var(--radius); box-shadow: 0 8px 24px var(--shadow); padding:18px; }
-  .grid { display:grid; grid-template-columns: 1fr; gap: 18px; } @media(min-width:720px){ .grid.cols-2{ grid-template-columns: 1fr 1fr; } .grid.cols-3{ grid-template-columns: repeat(3,1fr);} }
+  .grid { display:grid; grid-template-columns: 1fr; gap: 18px; }
+  @media(min-width:720px){ .grid.cols-2{ grid-template-columns: 1fr 1fr; } .grid.cols-3{ grid-template-columns: repeat(3,1fr);} }
   .grid > div { min-width:0; }
   label { display:block; font-size: 16px; color: var(--muted); margin-bottom:8px; font-weight:600; } input, select, textarea, button { width:100%; box-sizing:border-box; border-radius:16px; border:1.5px solid #2a3b54; background:#0c111a; color:#fff; padding:18px; font-size:20px; margin-bottom:8px; }
   select { padding-right:24px; } textarea { min-height:100px; }
@@ -44,6 +52,7 @@
   .btn { background:linear-gradient(180deg,#0e7eed,#0a5fc1); border:none; font-weight:800; letter-spacing:.3px; cursor:pointer; font-size:20px; padding:18px 0; border-radius:16px; }
   .btn.secondary { background:#0c111a; border:1.5px solid #2b3e59; color:#cfe3ff; } .btn.good { background:linear-gradient(180deg,#14bd8d,#0da77a); }
   .btn.warn { background:linear-gradient(180deg,#ffb703,#f77f00); } .btn.danger { background:linear-gradient(180deg,#ff4d4d,#bf2e2e); }
+  .text-btn { background:transparent; border:1px solid #2b3e59; color:#cfe3ff; padding:8px 10px; border-radius:12px; font-size:14px; cursor:pointer; }
   table { width:100%; border-collapse: collapse; } th, td { padding:16px; border-bottom:1.5px solid #223145; text-align:left; font-size:18px; }
   th { color:#b8cdf1; font-weight:800; font-size:18px; position: sticky; top:0; background:#162133; z-index:1; } tr:hover td { background:#121b2b; }
   .pill { padding:8px 14px; border-radius:9999px; font-size:16px; display:inline-block; } .pill.badge { background:#0c111a; border:1.5px solid #2f3f57; color:#b9c9e3; }
@@ -79,7 +88,18 @@
   main.wrap > section { background:var(--card); border:1px solid #243349; border-radius: var(--radius); box-shadow: 0 8px 24px var(--shadow); padding:18px; margin:14px 8px; }
   /* remove any images inside downriggers section */
   #downriggers img { display:none !important; }
+  /* details chevrons */
+  details > summary { list-style: none; cursor: pointer; position: relative; padding-right: 18px; }
+  details > summary::-webkit-details-marker { display:none; }
+  details > summary::after { content: '▸'; position:absolute; right:0; top:2px; color:#8cabd8; transition: transform .15s ease; }
+  details[open] > summary::after { transform: rotate(90deg); }
+  .details-ctrl { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin: 6px 0 10px; }
+  .small { font-size: 12px; color: #9fb0c8; }
+  .note { background: #0c111a; border: 1px solid #223145; border-radius: 12px; padding:10px 12px; color:#cfe3ff; }
 </style>
+<!-- close head and open body to fix structure -->
+</head>
+<body>
 <header>
   <div class="bar" style="justify-content:center; padding:10px 12px; position:relative;">
     <div class="menu-anchor" style="position:absolute; left:12px; top:8px;">
@@ -89,14 +109,17 @@
         </svg>
       </button>
       <div id="navMenu" class="menu-list" hidden>
-        <a href="reel-record.html" class="menu-link">Log (Reel-Record)</a>
-        <a href="#playbook" class="menu-link">Playbook</a>
-        <a href="#quickref" class="menu-link">Quick Ref</a>
+        <div class="menu-label">Playbook</div>
+        <a href="#playbook" class="menu-link">Overview</a>
+        <a href="#quickref" class="menu-link">Quick Reference</a>
         <a href="#loadouts" class="menu-link">Loadouts</a>
         <a href="#walleye" class="menu-link">Walleye</a>
         <a href="#prelaunch" class="menu-link">Pre-Launch &amp; Safety</a>
         <a href="#electronics" class="menu-link">Electronics</a>
         <a href="#downriggers" class="menu-link">Downriggers</a>
+        <div class="menu-sep" role="separator"></div>
+        <div class="menu-label">Logging</div>
+        <a href="reel-record.html" class="menu-link">Reel-Record</a>
       </div>
     </div>
     <div class="title-container">
@@ -108,7 +131,7 @@
 
 <main class="wrap">
   <section id="hero">
-    <div class="grid two">
+    <div class="grid cols-2">
       <div class="note">
         <strong>Boat:</strong> 20 ft aluminum FISH N SKI I/O Motor & Minn Kota Terrova 80 US2 with i-Pilot (60 in), Humminbird Helix 8 CHIRP MEGA SI+ GPS G3N.<br/>
         <strong>Set Up:</strong> 2 Cannon electric downriggers (15 lb balls), 2 copper setups on Ninja 9.5 boards.<br/>
@@ -121,42 +144,46 @@
 <section id="playbook">
     <h2>Playbook (Salmon/Trout)</h2>
     <h3>Where and When to Start</h3>
+    <div class="details-ctrl">
+      <button class="text-btn" data-expand="#playbook">Expand all</button>
+      <button class="text-btn" data-collapse="#playbook">Collapse all</button>
+    </div>
     <ul>
-      <li>Work 90-140 FOW (inside 75-90 at first light; slide deeper mid-morning).</li>
-      <li>Thermocline focus: Kings 42-50 F; Coho 50-55 F; Steelhead 55-62 F.</li>
-      <li>Thermocline often 50-80 ft down—verify on Helix.</li>
-      <li>Troll N/S with light S-turns, 2.4-2.7 mph SOG.</li>
+      <li>Work <span class="pill badge">90–140 FOW</span> (inside 75–90 at first light; slide deeper mid‑morning).</li>
+      <li>Thermocline focus: Kings 42–50°F; Coho 50–55°F; Steelhead 55–62°F.</li>
+      <li>Thermocline often 50–80 ft down — verify on Helix.</li>
+      <li>Troll N/S with light S‑turns <span class="pill badge">2.4–2.7 mph SOG</span>.</li>
     </ul>
 
     <details>
       <summary><strong>Rod "A Spread" (Kings/Coho)</strong></summary>
-      <div class="grid">
+  <div class="grid cols-2">
         <div>
           <h3>Rigger #1 (deeper king rod)</h3>
           <ul>
-            <li>Depth 65-80 ft (or 5-10 ft below marks); lead 15-25 ft.</li>
+    <li>Depth <span class="pill badge">65–80 ft</span> (or 5–10 ft below marks); lead 15–25 ft.</li>
             <li>8-11 in flasher+fly or meat (green/glow, chrome-green, blue bubble).</li>
             <li>Free slider 10-12 ft up with mag spoon (NBK, Green Dolphin, UV blue/silver).</li>
-            <li>~2.2-2.5 at the ball (SOG 2.4-2.7).</li>
+    <li>~<span class="pill badge">2.2–2.5 mph</span> at the ball (SOG 2.4–2.7).</li>
           </ul>
           <h3>Rigger #2 (spoon utility)</h3>
           <ul>
-            <li>Depth 45-60 ft; lead 40-60 ft; mag spoon (glow green/white, Blue Dolphin, UV Bloody Nose).</li>
+    <li>Depth 45–60 ft; lead 40–60 ft; mag spoon (glow green/white, Blue Dolphin, UV Bloody Nose).</li>
             <li>Free slider 8-10 ft up with standard/orange spoon.</li>
           </ul>
         </div>
         <div>
           <h3>Copper Boards</h3>
           <ul>
-            <li><strong>Port (deeper, 300):</strong> J-plug glow green ladderback or flasher+fly; ~70-80 ft @ 2.5 mph.</li>
-            <li><strong>Starboard (mid, 200-250):</strong> mag spoon or 8 in flasher+fly; ~50-70 ft @ 2.5 mph.</li>
+    <li><strong>Port (deeper, 300):</strong> J‑plug glow green ladderback or flasher+fly; ~<span class="pill badge">70–80 ft</span> @ <span class="pill badge">2.5 mph</span>.</li>
+    <li><strong>Starboard (mid, 200–250):</strong> mag spoon or 8 in flasher+fly; ~<span class="pill badge">50–70 ft</span> @ <span class="pill badge">2.5 mph</span>.</li>
             <li>Deeper piece to inside of S-turns (slower side).</li>
           </ul>
         </div>
       </div>
     </details>
 
-    <details>
+  <details>
       <summary><strong>Rod "B Spread" (Steelhead/Coho)</strong></summary>
       <ul>
         <li>Rigger 40-50 ft: spoon, 50-60 ft lead.</li>
@@ -180,7 +207,11 @@
   <section id="walleye">
     <h2>Walleye Patterns (Lake Michigan - Grand Haven/Holland)</h2>
     <p class="small">Use your Ninja boards and rig light leaders when targeting eyes. Slow down compared to salmon speeds.</p>
-    <div class="grid two">
+    <div class="grid cols-2">
+      <div class="details-ctrl">
+        <button class="text-btn" data-expand="#walleye">Expand all</button>
+        <button class="text-btn" data-collapse="#walleye">Collapse all</button>
+      </div>
       <div>
         <h3>When & Where</h3>
         <ul>
@@ -233,11 +264,11 @@
 
   <section id="quickref">
     <h2>1-Page Quick Reference</h2>
-    <div class="twocol">
+  <div class="grid cols-2">
       <div>
         <h3>Start Grid (Salmon/Trout)</h3>
         <ul>
-          <li>90-140 FOW (75-90 early); cline 50-80 down; SOG 2.4-2.7.</li>
+      <li><span class="pill badge">90–140 FOW</span> (75–90 early); cline 50–80 down; SOG <span class="pill badge">2.4–2.7</span>.</li>
           <li>Speeds: FF/Meat 2.2-2.5; Spoons 2.5-3.0; Plugs 2.4-2.8.</li>
         </ul>
         <h3>Walleye Quick</h3>
@@ -262,22 +293,22 @@
     <h2>Quick Loadouts (Salmon/Trout)</h2>
     <h3>Dawn Kings (90-120 FOW)</h3>
     <ul>
-      <li>Rgr 75: 11 in flasher+fly (green/glow), 20 ft lead; slider mag NBK.</li>
-      <li>Rgr 55: mag spoon Blue Dolphin, 50 ft lead; slider orange.</li>
+  <li>Rigger 75: 11 in flasher+fly (green/glow), 20 ft lead; slider mag NBK.</li>
+  <li>Rigger 55: mag spoon Blue Dolphin, 50 ft lead; slider orange.</li>
       <li>300 copper: J-plug glow green ladderback.</li>
       <li>250 copper: 8 in flasher+fly (UV stud).</li>
     </ul>
     <h3>Mid-Morning Mix (110-140 FOW)</h3>
     <ul>
-      <li>Rgr 60: mag spoon UV/blue-silver, 50 ft lead; slider UV.</li>
-      <li>Rgr 45: standard spoon glow white/green dot, 55 ft lead.</li>
+  <li>Rigger 60: mag spoon UV/blue-silver, 50 ft lead; slider UV.</li>
+  <li>Rigger 45: standard spoon glow white/green dot, 55 ft lead.</li>
       <li>200 copper: mag spoon chrome/green.</li>
       <li>300 copper: meat rig behind 11 in chrome-green flasher.</li>
     </ul>
     <h3>Steelhead/Coho (scum lines)</h3>
     <ul>
-      <li>Rgr 35-45: orange/UV spoon, 55 ft lead.</li>
-      <li>Rgr 25-35: orange/silver standard spoon, 55 ft lead.</li>
+  <li>Rigger 35-45: orange/UV spoon, 55 ft lead.</li>
+  <li>Rigger 25-35: orange/silver standard spoon, 55 ft lead.</li>
       <li>150-200 copper: orange/brass standard spoon.</li>
       <li>200-250 copper: mag spoon with UV tape; run 2.7-3.0 mph.</li>
     </ul>
@@ -301,7 +332,7 @@
 
   <section id="downriggers">
     <h2>Cannon Magnum 10 / 10A Notes</h2>
-    <div class="grid two">
+  <div class="grid cols-2">
       <div>
     <h3>Setup Tips on Dee-lite</h3>
     <ul>
@@ -323,7 +354,7 @@
 
   <section id="prelaunch">
     <h2>Pre-Launch & Safety</h2>
-    <div class="grid two">
+  <div class="grid cols-2">
       <div>
         <h3>Boat/Engine/Electrics</h3>
         <ul>
@@ -364,12 +395,15 @@
   let lastFocused = null;
   function open(){
     lastFocused = document.activeElement; menu.hidden = false; toggle.setAttribute('aria-expanded','true');
+    requestAnimationFrame(()=> menu.classList.add('open'));
     const f = menu.querySelector('a,button'); if(f) f.focus();
     document.addEventListener('click', onDocClick);
     document.addEventListener('keydown', onKey);
   }
   function close(){
-    menu.hidden = true; toggle.setAttribute('aria-expanded','false');
+    menu.classList.remove('open');
+    setTimeout(()=>{ menu.hidden = true; }, 120);
+    toggle.setAttribute('aria-expanded','false');
     document.removeEventListener('click', onDocClick);
     document.removeEventListener('keydown', onKey);
     if(lastFocused) lastFocused.focus(); lastFocused = null;
@@ -386,6 +420,21 @@
   }
   toggle.addEventListener('click', (e)=>{ e.stopPropagation(); if(menu.hidden) open(); else close(); });
   links.forEach(a=> a.addEventListener('click', ()=> setTimeout(close, 50)));
+})();
+
+// Expand / collapse all details controls
+(function(){
+  function setAll(sectionSel, open){
+    const root = document.querySelector(sectionSel);
+    if(!root) return;
+    root.querySelectorAll('details').forEach(d=>{ d.open = !!open; });
+  }
+  document.querySelectorAll('[data-expand]').forEach(btn=>{
+    btn.addEventListener('click', ()=> setAll(btn.getAttribute('data-expand'), true));
+  });
+  document.querySelectorAll('[data-collapse]').forEach(btn=>{
+    btn.addEventListener('click', ()=> setAll(btn.getAttribute('data-collapse'), false));
+  });
 })();
 </script>
 </body>

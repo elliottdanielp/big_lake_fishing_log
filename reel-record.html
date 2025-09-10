@@ -75,10 +75,13 @@
 /* anchored header dropdown (dedicated icon button, not title) */
 .icon-btn { background:transparent; border:1px solid rgba(255,255,255,0.12); color:var(--ink); border-radius:12px; width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
 .icon-btn svg { width:26px; height:26px; fill:none; stroke:#e8eefb; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
-.menu-list { position:absolute; top:calc(100% + 8px); left:0; min-width:240px; max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch; background:var(--card); border:1px solid #223145; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); padding:10px; z-index:60; display:flex; flex-direction:column; gap:8px; }
+.menu-list { position:absolute; top:calc(100% + 8px); left:0; min-width:240px; max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch; background:var(--card); border:1px solid #223145; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); padding:10px; z-index:60; display:flex; flex-direction:column; gap:8px; opacity:0; transform: translateY(4px) scale(0.98); transition: opacity .12s ease, transform .12s ease; }
+.menu-list.open { opacity:1; transform: translateY(0) scale(1); }
 .menu-list[hidden] { display:none; }
 .menu-list a { text-decoration:none; color:var(--ink); padding:12px 14px; border-radius:10px; font-weight:700; font-size:18px; }
 .menu-list a:hover, .menu-list a[aria-current="true"] { background:#0c1624; }
+.menu-label { font-size:12px; letter-spacing:.6px; text-transform:uppercase; color:#89a2c4; padding:6px 8px 2px; }
+.menu-sep { height:1px; background:#223145; margin:6px 4px; border-radius:1px; }
 @media(min-width:720px){ .menu-list { left:50%; transform:translateX(-50%); } }
 @media(max-width:520px){ .icon-btn { width:46px; height:46px; border-radius:14px; } }
 
@@ -123,7 +126,10 @@
 					</svg>
 				</button>
 				<div id="navMenuRR" class="menu-list" hidden>
-					<a href="index.html#playbook" class="menu-link">Playbook</a>
+					<div class="menu-label">Playbook</div>
+					<a href="index.html#playbook" class="menu-link">Overview</a>
+					<div class="menu-sep" role="separator"></div>
+					<div class="menu-label">Logging</div>
 					<a href="#tab-setup" class="menu-link">Trip Setup</a>
 					<a href="#tab-log" class="menu-link">Catch Log</a>
 					<a href="#tab-review" class="menu-link">Review & Export</a>
@@ -1076,8 +1082,8 @@
 		function updateActive(){ const h = location.hash || '#tab-setup'; links.forEach(a=>{ const href=a.getAttribute('href')||''; const is=href.startsWith('#') && href===h; if(is) a.setAttribute('aria-current','true'); else a.removeAttribute('aria-current'); }); }
 		window.addEventListener('hashchange', updateActive); updateActive();
 		let lastFocused=null;
-		function open(){ lastFocused=document.activeElement; menu.hidden=false; toggle.setAttribute('aria-expanded','true'); const f=menu.querySelector('a,button'); if(f) f.focus(); document.addEventListener('click', onDoc); document.addEventListener('keydown', onKey); }
-		function close(){ menu.hidden=true; toggle.setAttribute('aria-expanded','false'); document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey); if(lastFocused) lastFocused.focus(); lastFocused=null; }
+		function open(){ lastFocused=document.activeElement; menu.hidden=false; requestAnimationFrame(()=> menu.classList.add('open')); toggle.setAttribute('aria-expanded','true'); const f=menu.querySelector('a,button'); if(f) f.focus(); document.addEventListener('click', onDoc); document.addEventListener('keydown', onKey); }
+		function close(){ menu.classList.remove('open'); setTimeout(()=>{ menu.hidden=true; }, 120); toggle.setAttribute('aria-expanded','false'); document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey); if(lastFocused) lastFocused.focus(); lastFocused=null; }
 		function onDoc(e){ if(!menu.contains(e.target) && e.target!==toggle) close(); }
 		function onKey(e){ if(e.key==='Escape'){ close(); return; } if(e.key==='Tab' && !menu.hidden){ const f=Array.from(menu.querySelectorAll('a,button')).filter(el=>!el.disabled); if(!f.length) return; const first=f[0], last=f[f.length-1]; if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } } }
 		toggle.addEventListener('click', e=>{ e.stopPropagation(); if(menu.hidden) open(); else close(); });
