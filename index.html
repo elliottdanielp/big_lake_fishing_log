@@ -64,6 +64,17 @@
   /* responsive table wrapper */
   .table-wrap { overflow:auto; max-width:100%; border-radius:12px; }
   .table-wrap table { min-width:640px; table-layout:fixed; }
+  /* compact key-value groups for quick reference */
+  .kv-group { padding:8px 12px 4px; }
+  .group-title { font-size:12px; letter-spacing:.6px; text-transform:uppercase; color:#89a2c4; margin:8px 4px; }
+  .kv-list { display:flex; flex-direction:column; gap:6px; }
+  .kv-item { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:10px 4px; border-bottom:1px solid #223145; }
+  .kv-item:last-child { border-bottom:none; }
+  .kv-left { display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .kv-label { font-weight:800; color:#cfe3ff; }
+  .kv-notes { color:#9fb0c8; font-size:14px; }
+  .kv-reco { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  @media(max-width:520px){ .kv-item{ flex-direction:column; } .kv-reco{ margin-top:4px; } }
   .spacer { height:16px; } .section-title { font-weight:900; letter-spacing:.4px; font-size:24px; } .footer { color:var(--muted); text-align:center; font-size:16px; padding:18px 0 32px; }
   .hide { display:none !important; }
   .thumb { width:90px; height:90px; object-fit:cover; border-radius:14px; border:1.5px solid #2a3b54; }
@@ -220,14 +231,41 @@
       </div>
     </details>
 
-  <details>
+    <details>
       <summary><strong>Rod "B Spread" (Steelhead/Coho)</strong></summary>
-      <ul>
-        <li>Rigger 40-50 ft: spoon, 50-60 ft lead.</li>
-        <li>Rigger 25-35 ft: orange/UV spoon, 55 ft lead.</li>
-        <li>Copper 150-200: bright orange/silver spoon.</li>
-        <li>Copper 200-250: mag spoon; run 2.6-3.0 mph.</li>
-      </ul>
+      <div class="grid cols-2">
+        <div>
+          <h3>Rigger #1 (upper column)</h3>
+          <ul>
+            <li>Depth <span class="pill depth">40–50 ft</span>; lead <span class="pill depth">50–60 ft</span>.</li>
+            <li>Standard/mag spoon: bright orange/UV, chrome‑blue, or UV green.</li>
+            <li>Free slider <span class="pill depth">8–10 ft</span> up with orange/UV standard spoon.</li>
+            <li>Target <span class="pill speed">2.6–3.0 mph</span> when hunting steelhead; coho are fine at the higher end.</li>
+          </ul>
+
+          <h3>Rigger #2 (high flyer)</h3>
+          <ul>
+            <li>Depth <span class="pill depth">25–35 ft</span>; lead <span class="pill depth">55 ft</span>.</li>
+            <li>Orange/silver or UV mixed‑metal spoon for surface‑oriented fish.</li>
+            <li>Use the high rigger to sweep temp breaks or scum lines; tighten turns to pulse baits.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Copper Boards</h3>
+          <ul>
+            <li><strong>Port (shallower, 150–200):</strong> bright orange/silver standard spoon for steelhead on top; run <span class="pill speed">2.7–3.0 mph</span>.</li>
+            <li><strong>Starboard (deeper, 200–250):</strong> mag spoon or 8 in flasher+fly in UV; runs ~<span class="pill depth">50–70 ft</span> @ <span class="pill speed">2.7–3.0 mph</span>.</li>
+            <li>Work across temp breaks; high piece to the fast/outside of S‑turns to trigger bites.</li>
+          </ul>
+
+          <h3>Notes</h3>
+          <ul>
+            <li>Key temps: Steelhead <span class="pill temp">55–62°F</span>; Coho <span class="pill temp">50–55°F</span>.</li>
+            <li>Pick lanes with debris/scum lines; add a touch of speed and color (orange) up high.</li>
+            <li>Don’t abandon kings—keep one deeper copper or a mid rigger ready if marks appear.</li>
+          </ul>
+        </div>
+      </div>
     </details>
 
     <details>
@@ -394,124 +432,118 @@
 
     <details>
       <summary><strong>Quick Reference Chart</strong></summary>
-      <div class="card" style="padding:0">
-        <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:140px">Category</th>
-              <th>Menu / Item</th>
-              <th style="width:220px">Recommended</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>2D Sonar</td>
-              <td>SwitchFire</td>
-              <td>Clear Mode</td>
-              <td>Use Max Mode when calm to scout bait/thermocline</td>
-            </tr>
-            <tr>
-              <td>2D Sonar</td>
-              <td>2D Frequency / Display Spectrum</td>
-              <td>High‑Wide CHIRP (Wide)</td>
-              <td>General‑purpose for salmon trolling</td>
-            </tr>
-            <tr>
-              <td>2D Sonar</td>
-              <td>Surface Clutter</td>
-              <td>3</td>
-              <td>Reduces wave noise but keeps cline visible</td>
-            </tr>
-            <tr>
-              <td>2D Sonar</td>
-              <td>Sensitivity</td>
-              <td>12–14 (typical)</td>
-              <td>Adjust to conditions; lower if screen peppered</td>
-            </tr>
-            <tr>
-              <td>2D Sonar</td>
-              <td>RTS Window</td>
-              <td>Off</td>
-              <td>Optional: On if you prefer fast right‑pane returns</td>
-            </tr>
-            <tr>
-              <td>2D Sonar</td>
-              <td>Bottom View</td>
-              <td>Structure ID</td>
-              <td>Improves bottom contrast when trolling</td>
-            </tr>
-            <tr>
-              <td>Display</td>
-              <td>Depth Lines / Frequency Label / Color Bar / Temp Graph</td>
-              <td>On</td>
-              <td>Helpful overlays while trolling</td>
-            </tr>
-            <tr>
-              <td>Imaging+</td>
-              <td>DI CHIRP Display Frequency</td>
-              <td>455 kHz CHIRP</td>
-              <td>Use MEGA in shallows (&lt;75 ft)</td>
-            </tr>
-            <tr>
-              <td>Imaging+</td>
-              <td>SI CHIRP Display Frequency</td>
-              <td>455 kHz CHIRP</td>
-              <td>Longer reach offshore; MEGA in shallows</td>
-            </tr>
-            <tr>
-              <td>Imaging+</td>
-              <td>SI Range Lines</td>
-              <td>On</td>
-              <td>Gauge spread vs. side coverage</td>
-            </tr>
-            <tr>
-              <td>Imaging+</td>
-              <td>SI Background Pinging</td>
-              <td>Off</td>
-              <td>Reduce noise/interference</td>
-            </tr>
-            <tr>
-              <td>System</td>
-              <td>Noise Filter</td>
-              <td>1 (Low)</td>
-              <td>Increase only if interference appears</td>
-            </tr>
-            <tr>
-              <td>System</td>
-              <td>Max Depth</td>
-              <td>Manual (10–20% &gt; bottom)</td>
-              <td>e.g., 150 ft if fishing 120 FOW</td>
-            </tr>
-            <tr>
-              <td>System</td>
-              <td>Water Type</td>
-              <td>Fresh</td>
-              <td>—</td>
-            </tr>
-            <tr>
-              <td>Transducer</td>
-              <td>Connected Transducer</td>
-              <td>HW + MEGA SI</td>
-              <td>Ensure correct selection</td>
-            </tr>
-            <tr>
-              <td>Chart</td>
-              <td>Chart Speed</td>
-              <td>3–4</td>
-              <td>At ~2–3 mph troll speed</td>
-            </tr>
-            <tr>
-              <td>SI</td>
-              <td>SI Range</td>
-              <td>~1–1.5× depth/side</td>
-              <td>100–150 ft per side in 100 FOW</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="card" style="padding:8px 8px 0">
+        <div class="kv-group">
+          <div class="group-title">2D Sonar</div>
+          <div class="kv-list">
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">SwitchFire</div><div class="kv-notes">Use Max Mode when calm to scout bait/thermocline</div></div>
+              <div class="kv-reco"><span class="pill badge">Clear Mode</span></div>
+            </div>
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">2D Frequency / Display Spectrum</div><div class="kv-notes">General‑purpose for salmon trolling</div></div>
+              <div class="kv-reco"><span class="pill badge">High‑Wide CHIRP (Wide)</span></div>
+            </div>
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">Surface Clutter</div><div class="kv-notes">Reduce wave noise; keep cline visible</div></div>
+              <div class="kv-reco"><span class="pill badge">3</span></div>
+            </div>
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">Sensitivity</div><div class="kv-notes">Lower if screen peppered</div></div>
+              <div class="kv-reco"><span class="pill badge">12–14</span></div>
+            </div>
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">RTS Window</div><div class="kv-notes">Optional right‑pane returns</div></div>
+              <div class="kv-reco"><span class="pill badge">Off</span></div>
+            </div>
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">Bottom View</div><div class="kv-notes">Improves bottom contrast when trolling</div></div>
+              <div class="kv-reco"><span class="pill badge">Structure ID</span></div>
+            </div>
+          </div>
         </div>
-        <div class="small" style="padding:0 16px 14px">Tip: To find the thermocline, switch 2D to Max Mode and raise Sensitivity until a thin line appears; run baits 10–15 ft above it.</div>
+
+        <div class="kv-group">
+          <div class="group-title">Display</div>
+          <div class="kv-list">
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">Depth Lines / Freq Label / Color Bar / Temp Graph</div><div class="kv-notes">Helpful overlays while trolling</div></div>
+              <div class="kv-reco"><span class="pill badge">On</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="kv-group">
+          <div class="group-title">Imaging+</div>
+          <div class="kv-list">
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">DI CHIRP Display Frequency</div><div class="kv-notes">Use MEGA in shallows (&lt;75 ft)</div></div>
+              <div class="kv-reco"><span class="pill badge">455 kHz CHIRP</span></div>
+            </div>
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">SI CHIRP Display Frequency</div><div class="kv-notes">Longer reach offshore; MEGA in shallows</div></div>
+              <div class="kv-reco"><span class="pill badge">455 kHz CHIRP</span></div>
+            </div>
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">SI Range Lines</div><div class="kv-notes">Gauge spread vs. side coverage</div></div>
+              <div class="kv-reco"><span class="pill badge">On</span></div>
+            </div>
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">SI Background Pinging</div><div class="kv-notes">Reduce noise/interference</div></div>
+              <div class="kv-reco"><span class="pill badge">Off</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="kv-group">
+          <div class="group-title">System</div>
+          <div class="kv-list">
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">Noise Filter</div><div class="kv-notes">Increase only if interference appears</div></div>
+              <div class="kv-reco"><span class="pill badge">1 (Low)</span></div>
+            </div>
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">Max Depth</div><div class="kv-notes">e.g., 150 ft if fishing 120 FOW</div></div>
+              <div class="kv-reco"><span class="pill badge">Manual (10–20% &gt; bottom)</span></div>
+            </div>
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">Water Type</div></div>
+              <div class="kv-reco"><span class="pill badge">Fresh</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="kv-group">
+          <div class="group-title">Transducer</div>
+          <div class="kv-list">
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">Connected Transducer</div><div class="kv-notes">Ensure correct selection</div></div>
+              <div class="kv-reco"><span class="pill badge">HW + MEGA SI</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="kv-group">
+          <div class="group-title">Chart</div>
+          <div class="kv-list">
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">Chart Speed</div><div class="kv-notes">At ~2–3 mph troll speed</div></div>
+              <div class="kv-reco"><span class="pill speed">3–4</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="kv-group">
+          <div class="group-title">Side Imaging</div>
+          <div class="kv-list">
+            <div class="kv-item">
+              <div class="kv-left"><div class="kv-label">SI Range</div><div class="kv-notes">~100–150 ft/side in 100 FOW</div></div>
+              <div class="kv-reco"><span class="pill depth">~1–1.5× depth/side</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="small" style="padding:0 8px 12px">Tip: To find the thermocline, switch 2D to Max Mode and raise Sensitivity until a thin line appears; run baits 10–15 ft above it.</div>
       </div>
     </details>
     <h3>i-Pilot (Terrova 80)</h3>
