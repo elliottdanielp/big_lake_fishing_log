@@ -75,6 +75,10 @@
   #bottomBar { position: fixed; left: 12px; right: 12px; bottom: 18px; display:flex; gap:8px; justify-content:space-between; align-items:center; z-index:60; }
   #bottomBar .bar-btn { flex:1; padding:12px 10px; border-radius:14px; font-size:16px; }
   @media(min-width:721px){ #bottomBar{ display:none; } }
+  /* containerize each major section like a card */
+  main.wrap > section { background:var(--card); border:1px solid #243349; border-radius: var(--radius); box-shadow: 0 8px 24px var(--shadow); padding:18px; margin:14px 8px; }
+  /* remove any images inside downriggers section */
+  #downriggers img { display:none !important; }
 </style>
 <header>
   <div class="bar" style="justify-content:center; padding:10px 12px; position:relative;">
@@ -82,7 +86,6 @@
       <button id="navToggle" class="icon-btn" aria-expanded="false" aria-haspopup="true" aria-controls="navMenu" aria-label="Menu">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 6h14M4 12h14M4 18h14"/>
-          <path d="M17 5l3 3"/>
         </svg>
       </button>
       <div id="navMenu" class="menu-list" hidden>
@@ -91,14 +94,14 @@
         <a href="#quickref" class="menu-link">Quick Ref</a>
         <a href="#loadouts" class="menu-link">Loadouts</a>
         <a href="#walleye" class="menu-link">Walleye</a>
-        <a href="#checklists" class="menu-link">Checklists</a>
+        <a href="#prelaunch" class="menu-link">Pre-Launch &amp; Safety</a>
         <a href="#electronics" class="menu-link">Electronics</a>
         <a href="#downriggers" class="menu-link">Downriggers</a>
       </div>
     </div>
     <div class="title-container">
-      <div class="title">Dee-lite</div>
-      <div class="tagline">Grand Haven Offshore Playbook (v2)</div>
+      <div class="title">Lake Michigan</div>
+      <div class="tagline"> - Offshore Playbook - </div>
     </div>
   </div>
 </header>
@@ -125,7 +128,7 @@
       <li>Troll N/S with light S-turns, 2.4-2.7 mph SOG.</li>
     </ul>
 
-    <details open>
+    <details>
       <summary>4 Rod "A Spread" (Kings/Coho)</summary>
       <div class="grid">
         <div>
@@ -321,7 +324,7 @@
     </ul>
   </section>
 
-  <section id="checklists">
+  <section id="prelaunch">
     <h2>Pre-Launch & Safety</h2>
     <div class="grid two">
       <div>
