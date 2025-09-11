@@ -31,6 +31,7 @@
 		.row { display:flex; gap:14px; } .row > * { flex:1; } .chip { display:inline-flex; align-items:center; gap:8px; background:#0c111a; border:1.5px dashed #2f3f57; padding:12px 14px; border-radius:999px; font-size:16px; color:var(--muted); }
 		.muted { color:var(--muted); font-size:16px; } .hint { font-size:15px; color:#8cabd8; margin-top:8px; }
 		.btn { background:linear-gradient(180deg,#0e7eed,#0a5fc1); border:none; font-weight:800; letter-spacing:.3px; cursor:pointer; font-size:20px; padding:18px 0; border-radius:16px; }
+			.btn.sm { font-size:16px; padding:10px 12px; border-radius:12px; }
 		.btn.secondary { background:#0c111a; border:1.5px solid #2b3e59; color:#cfe3ff; } .btn.good { background:linear-gradient(180deg,#14bd8d,#0da77a); }
 		.btn.warn { background:linear-gradient(180deg,#ffb703,#f77f00); } .btn.danger { background:linear-gradient(180deg,#ff4d4d,#bf2e2e); }
 		table { width:100%; border-collapse: collapse; } th, td { padding:16px; border-bottom:1.5px solid #223145; text-align:left; font-size:18px; }
@@ -152,7 +153,7 @@
 			<div class="card">
 				<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
 					<div class="section-title">Trip header</div>
-					<button class="btn" id="fetchConditions" type="button" title="Use GPS to auto-fill conditions">Catch Conditions (GPS)</button>
+					<button class="btn sm" id="fetchConditions" type="button" title="Use GPS to auto-fill conditions">Catch Conditions (GPS)</button>
 				</div>
 				<div class="grid cols-2">
 					<div><label for="tripDate">Date</label><input id="tripDate" type="date" /></div>
@@ -169,12 +170,9 @@
 					<div><label for="waves">Waves (ft)</label><input id="waves" type="number" inputmode="decimal" /></div>
 					<div><label for="clouds">Cloud cover</label><select id="clouds"></select></div>
 				</div>
-				<div class="row" style="margin-top:10px">
-					<button class="btn secondary" id="downloadConditions" type="button">Download</button>
-					<button class="btn warn" id="manualOverride" type="button">Manual Override</button>
-				</div>
+				<!-- removed Download and Manual Override per request -->
 				<div style="margin-top:8px">
-					<div class="muted">Tip: Tap <b>Download</b> or <b>Catch Conditions</b> before you leave to download latest conditions. Last cached: <span id="conditionsCached">—</span></div>
+					<div class="muted">Tip: Tap <b>Catch Conditions (GPS)</b> before you leave to save latest conditions. Last cached: <span id="conditionsCached">—</span></div>
 					<div class="muted">Nearest station: <span id="conditionsStation">—</span></div>
 					<div id="marineSource" class="muted">Source: —</div>
 				</div>
@@ -189,7 +187,7 @@
 			<div class="card">
 				<div class="section-title">Save / load trip</div>
 				<div class="grid cols-2">
-					<button class="btn good" id="saveTrip">Save header</button>
+					<button class="btn good" id="saveTrip">Start Trip</button>
 					<button class="btn secondary" id="newTrip">New trip</button>
 				</div>
 				<div class="spacer"></div>
@@ -307,15 +305,17 @@
 				</div>
 				<div class="hint">Note: trip will be uploaded only with cell service.</div>
 			</div>
-			<div class="card">
-				<div class="section-title">Manage data</div>
-				<div class="grid cols-2">
-					<button class="btn danger" id="clearTrip">Clear current trip</button>
-					<button class="btn danger" id="clearAll">Clear ALL trips</button>
-					<button class="btn danger" id="deleteTrip" style="grid-column:span 2">Delete trip</button>
-				</div>
-				<div class="hint">Clearing is permanent on this device. Export first if you want a backup.</div>
-			</div>
+						<div class="card">
+								<details>
+									<summary><strong>Manage data</strong></summary>
+									<div class="grid cols-2" style="margin-top:10px">
+										<button class="btn danger" id="clearTrip" type="button">Clear current trip</button>
+										<button class="btn danger" id="clearAll" type="button">Clear ALL trips</button>
+										<button class="btn danger" id="deleteTrip" type="button" style="grid-column:span 2">Delete trip</button>
+									</div>
+									<div class="hint">Clearing is permanent on this device. Export first if you want a backup.</div>
+								</details>
+						</div>
 		</section>
 		<section id="tab-settings" class="grid hide">
 			<div class="card">
@@ -330,7 +330,6 @@
 					<div><label for="listSpecies">Species</label><textarea id="listSpecies"></textarea></div>
 					<div><label for="listTrollDir">Troll directions</label><textarea id="listTrollDir"></textarea></div>
 					<div><label for="listClouds">Cloud cover</label><textarea id="listClouds"></textarea></div>
-					<div><label for="listHookLoc">Hook locations</label><textarea id="listHookLoc"></textarea></div>
 				</div>
 				<div class="row">
 					<button class="btn good" id="saveLists">Save lists</button>
@@ -369,8 +368,6 @@
 				</div>
 				<div class="row" style="margin-top:10px">
 					<button class="btn good" id="savePrefs" type="button">Save preferences</button>
-					<button class="btn secondary" id="testStationJson" type="button">Test station JSON</button>
-					<button class="btn secondary" id="debugStationJson" type="button">Debug station (raw)</button>
 				</div>
 				<div class="hint">Sticky keeps lure fields after saving. Quick mode hides advanced fields for speed.</div>
 			</div>
@@ -395,17 +392,8 @@
 	function attach(selector, evt, handler) { const el = document.querySelector(selector); if (el) el.addEventListener(evt, handler); }
 	const onReady = (fn) => { if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', fn); else fn(); };
 	onReady(() => {
-			// Manual override button clears and enables all weather fields for manual entry
-	attach('#manualOverride', 'click', () => {
-				['airTemp','surfaceTemp','wind','waves','clouds'].forEach(id => {
-					const el = document.getElementById(id);
-					if (el) {
-						el.value = '';
-						el.disabled = false;
-					}
-				});
-				toast('Weather fields cleared for manual entry');
-			});
+				// Prevent browser from restoring previous scroll position on hash changes
+				try{ if('scrollRestoration' in history) history.scrollRestoration = 'manual'; }catch(_){}
 			// All other event listeners below (move all listeners inside this block)
 	attach('#fetchConditions', 'click', async () => {
 				// Minimal local-only implementation: attempt geolocation then mark conditions cached.
@@ -454,17 +442,17 @@
 							if(wm && typeof wm.cloudPct === 'number'){
 								// map cloud % to nearest option in #clouds select if possible
 								const cloudsEl = document.getElementById('clouds');
+								let label = '';
 								if(cloudsEl){
 									const pct = wm.cloudPct;
 									// simple mapping: 0-10 Clear, 11-50 Partly, 51-100 Overcast
-									let opt = '';
-									if(pct<=10) opt = 'Clear'; else if(pct<=50) opt = 'Partly'; else opt = 'Overcast';
+									if(pct<=10) label = 'Clear'; else if(pct<=50) label = 'Partly'; else label = 'Overcast';
 									// pick matching option if present
-									const found = Array.from(cloudsEl.options).find(o=>o.text.toLowerCase().startsWith(opt.toLowerCase()));
+									const found = Array.from(cloudsEl.options).find(o=>o.text.toLowerCase().startsWith(label.toLowerCase()));
 									if(found) { cloudsEl.value = found.value || found.text; }
-									else { try{ cloudsEl.insertAdjacentHTML('beforeend', `<option>${opt}</option>`); cloudsEl.value = opt; }catch(_){} }
+									else { try{ cloudsEl.insertAdjacentHTML('beforeend', `<option>${label}</option>`); cloudsEl.value = label; }catch(_){} }
 								}
-								if(cur && state.trips[cur]) state.trips[cur].header.clouds = opt;
+								if(cur && state.trips[cur]) state.trips[cur].header.clouds = label;
 							}
 							// attempt to fetch marine / surface data (sea surface temp, waves)
 							try{
@@ -658,7 +646,13 @@
 				}
 				showSection(name);
 				// Always open target section at the top
-				if(name === 'log') { try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } }
+							if(name === 'log') {
+								try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); }
+								// Reinforce scroll reset in case of mobile browser quirks
+								setTimeout(()=>{ try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } }, 50);
+								requestAnimationFrame(()=>{ try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } });
+								if(document.activeElement && typeof document.activeElement.blur==='function') { document.activeElement.blur(); }
+							}
 			}
 			window.addEventListener('hashchange', applyHash);
 			applyHash();
@@ -853,8 +847,8 @@
 	// Determine if a trip is "active": header minimally filled and not ended
 	function isTripActive(){ const t=state.trips[currentTripId()]; if(!t) return false; const h=t.header||{}; return !!(h.date || h.port || (t.entries && t.entries.length)); }
 	function applyActiveTripGating(){ const active = isTripActive(); const logSec = document.getElementById('tab-log'); if(logSec){ if(active) logSec.classList.remove('hide'); else logSec.classList.add('hide'); }
-		// Change label to Edit Setup when active
-		try{ const headerTitle = document.querySelector('#tab-setup .section-title'); if(headerTitle){ headerTitle.textContent = active ? 'Edit Setup' : 'Trip header'; headerTitle.style.color = active ? 'var(--accent-2)' : ''; } }catch(e){}
+		// Change label: New Setup when blank, Edit Setup when any header/entries exist
+		try{ const headerTitle = document.querySelector('#tab-setup .section-title'); if(headerTitle){ const t=state.trips[currentTripId()]; const h=t && t.header ? t.header : {}; const hasAny = !!(h.date || h.port || h.startTime || (t && t.entries && t.entries.length)); headerTitle.textContent = hasAny ? 'Edit Setup' : 'New Setup'; headerTitle.style.color = active ? 'var(--accent-2)' : ''; } }catch(e){}
 	}
 
 	// End Trip: export/push then reset to fresh trip
@@ -1145,7 +1139,11 @@
 			}
 		}catch(e){ toast('Debug failed'); console.warn('debugStationJson failed', e); }
 	});
-	attach('#downloadConditions','click', ()=>{ if($('#fetchConditions')) $('#fetchConditions').click(); });
+	// removed Download Conditions button
+	function defaults(){ return { Platform:["Downrigger","Dipsy","Copper","Leadcore","Planer Board","Flatline"], LineType:["Wire","Braid","Mono","Fluorocarbon","Copper","Leadcore"], LureType:["Spoon","Plug","Flasher/Fly","Meat Rig","Spin-n-Glow","Other"], LureColors:["NBK","Blue Dolphin","UV Blue/Green","Glow Green","Glow White","Orange/Silver","Green Dolphin","UV Stud","Blue Bubble","Chrome/Green","Chrome/Blue","Bloody Nose"], Attractors:["8\" White Crush","8\" UV Stud","11\" Chrome-Green","11\" White Paddle","8\" Blue Bubble","8\" Green Dot"], FlyMeat:["Blue Fly","Green Fly","Blue/Green Fly","Green Meat","Blue Meat","UV Fly"], Species:["Chinook (King)","Coho","Steelhead","Lake Trout","Brown Trout","Other"], TrollDirection:["N","NE","E","SE","S","SW","W","NW"], Clouds:["Clear","Partly","Overcast","Fog"] }; }
+	function ensureListsSeeded(){ const d=defaults(); state.lists = state.lists || {}; const keys=["Platform","LineType","LureType","LureColors","Attractors","FlyMeat","Species","TrollDirection","Clouds"]; keys.forEach(k=>{ if(!Array.isArray(state.lists[k]) || !state.lists[k].length){ state.lists[k] = d[k].slice(); } }); }
+	function listsToTextarea(){ ensureListsSeeded(); $('#listPlatform').value = state.lists.Platform.join('\n'); $('#listLineType').value = state.lists.LineType.join('\n'); $('#listLureType').value = state.lists.LureType.join('\n'); $('#listLureColors').value = state.lists.LureColors.join('\n'); $('#listAttractors').value = state.lists.Attractors.join('\n'); $('#listFlyMeat').value = state.lists.FlyMeat.join('\n'); $('#listSpecies').value = state.lists.Species.join('\n'); $('#listTrollDir').value = state.lists.TrollDirection.join('\n'); $('#listClouds').value = state.lists.Clouds.join('\n'); }
+	function textareaToLists(){ const split=t=>t.split('\n').map(s=>s.trim()).filter(Boolean); state.lists = state.lists || {}; state.lists.Platform=split($('#listPlatform').value); state.lists.LineType=split($('#listLineType').value); state.lists.LureType=split($('#listLureType').value); state.lists.LureColors=split($('#listLureColors').value); state.lists.Attractors=split($('#listAttractors').value); state.lists.FlyMeat=split($('#listFlyMeat').value); state.lists.Species=split($('#listSpecies').value); state.lists.TrollDirection=split($('#listTrollDir').value); state.lists.Clouds=split($('#listClouds').value); save(); indicateSaved(); fillAllSelects(); }
 
 	// Log Bite popup behavior
 	(function(){
@@ -1230,7 +1228,7 @@
 		links.forEach(a=> a.addEventListener('click', ()=> setTimeout(close, 50)));
 	})();
 
-// Downrigger cannonball speed calculator (simplified) — moved from index.html
+// Downrigger cannonball speed calculator (simplified): show resultant mph and auto-fill Speed @ ball
 (function(){
 	function calc(){
 		const sog = parseFloat(document.getElementById('riggerSog')?.value || '0'); // mph
@@ -1245,16 +1243,11 @@
 		const vY = Math.sqrt(Math.max(0, (2 * weight) / (waterDensity * dragCoeff * area))); // ft/s
 		const vR = Math.sqrt(vX*vX + vY*vY); // ft/s
 		const mph = vR * 0.681818; // ft/s to mph
-		const knots = vR * 0.592484; // ft/s to knots
 		const el = document.getElementById('riggerResult');
 		if(!el) return;
-		el.innerHTML = `<b>Results</b><br>
-			Horizontal (ft/s): ${vX.toFixed(2)}<br>
-			Vertical (ft/s): ${vY.toFixed(2)}<br>
-			Resultant (ft/s): ${vR.toFixed(2)}<br>
-			Resultant (mph): ${mph.toFixed(2)}<br>
-			Resultant (knots): ${knots.toFixed(2)}<br>
-			<span class="hint">Inputs — SOG: ${sog.toFixed(1)} mph • Weight: ${weight.toFixed(0)} lb • Depth: ${depth.toFixed(0)} ft</span>`;
+		el.innerHTML = `<b>Resultant (mph): ${mph.toFixed(2)}</b><br><span class="hint">Inputs — SOG: ${sog.toFixed(1)} mph • Weight: ${weight.toFixed(0)} lb${isFinite(depth)&&depth>0?` • Depth: ${depth.toFixed(0)} ft`:''}</span>`;
+		// auto-fill Speed @ ball
+		try{ const sb = document.getElementById('speedBall'); if(sb){ sb.value = mph.toFixed(2); sb.classList.add('auto-filled'); setTimeout(()=> sb.classList.remove('auto-filled'), 2500); } }catch(_){ }
 	}
 	const btn = document.getElementById('calcRiggerBtn');
 	if(btn) btn.addEventListener('click', calc);
