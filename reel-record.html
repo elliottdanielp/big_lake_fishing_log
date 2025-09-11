@@ -78,8 +78,8 @@
 .menu-list { position:absolute; top:calc(100% + 8px); left:0; min-width:240px; max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch; background:var(--card); border:1px solid #223145; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); padding:10px; z-index:60; display:flex; flex-direction:column; gap:8px; opacity:0; transform: translateY(4px) scale(0.98); transition: opacity .12s ease, transform .12s ease; }
 .menu-list.open { opacity:1; transform: translateY(0) scale(1); }
 .menu-list[hidden] { display:none; }
-.menu-list a { text-decoration:none; color:var(--ink); padding:12px 14px; border-radius:10px; font-weight:700; font-size:18px; }
-.menu-list a:hover, .menu-list a[aria-current="true"] { background:#0c1624; }
+.menu-list .menu-link { text-decoration:none; color:var(--ink); padding:12px 14px; border-radius:10px; font-weight:700; font-size:18px; display:block; text-align:left; }
+.menu-list .menu-link:hover, .menu-list .menu-link[aria-current="true"] { background:#0c1624; }
 .menu-label { font-size:12px; letter-spacing:.6px; text-transform:uppercase; color:#89a2c4; padding:6px 8px 2px; }
 .menu-sep { height:1px; background:#223145; margin:6px 4px; border-radius:1px; }
 @media(min-width:720px){ .menu-list { left:50%; transform:translateX(-50%); } }
@@ -113,6 +113,9 @@
 	#bottomBar .bar-btn { flex:1; padding:12px 10px; border-radius:14px; font-size:16px; }
 	#saveStatus { margin-left:10px; min-width:120px; text-align:center; }
 	@media(min-width:721px){ #bottomBar{ display:none; } }
+	/* Rigger calc highlight when open */
+	#riggerCalc { border:1.5px dashed #2f3f57; border-radius:12px; padding:8px; }
+	#riggerCalc[open] { outline:2px solid var(--accent-2); box-shadow:0 0 0 3px rgba(46,208,162,.15) inset; }
 	</style>
 </head>
 <body>
@@ -147,9 +150,9 @@
 	<main class="wrap">
 		<section id="tab-setup" class="grid">
 			<div class="card">
-				<div style="display:flex;justify-content:space-between;align-items:center">
+				<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
 					<div class="section-title">Trip header</div>
-					<div id="saveStatus" class="pill badge" style="margin-left:10px">Saved</div>
+					<button class="btn" id="fetchConditions" type="button" title="Use GPS to auto-fill conditions">Catch Conditions (GPS)</button>
 				</div>
 				<div class="grid cols-2">
 					<div><label for="tripDate">Date</label><input id="tripDate" type="date" /></div>
@@ -167,7 +170,6 @@
 					<div><label for="clouds">Cloud cover</label><select id="clouds"></select></div>
 				</div>
 				<div class="row" style="margin-top:10px">
-					<button class="btn" id="fetchConditions" type="button">Catch Conditions (GPS)</button>
 					<button class="btn secondary" id="downloadConditions" type="button">Download</button>
 					<button class="btn warn" id="manualOverride" type="button">Manual Override</button>
 				</div>
@@ -177,6 +179,7 @@
 					<div id="marineSource" class="muted">Source: —</div>
 				</div>
 				<div class="hint">Tip: You can edit dropdown options under <b>Settings → Lists</b>.</div>
+				<div id="saveStatus" class="pill badge" style="display:inline-block;margin-top:8px">Saved</div>
 			</div>
 			<div class="card">
 				<div class="section-title">Gear</div>
@@ -227,14 +230,9 @@
 					<div><label for="lureType">Lure type</label><select id="lureType"></select></div>
 					<div><label for="lureBrand">Brand / model</label><input id="lureBrand" placeholder="e.g., Moonshine RV, J-plug" /></div>
 					<div><label for="lureSize">Size</label><input id="lureSize" placeholder="e.g., mag, standard, 4" /></div>
-					<div><label for="lureColor">Color / pattern</label><input id="lureColor" placeholder="e.g., NBK, UV blue/green, glow" /></div>
-					<div><label for="attractor">Attractor / flasher</label><input id="attractor" placeholder="e.g., 8&quot; white crush" /></div>
-					<div><label for="flyMeat">Fly / meat color</label><input id="flyMeat" placeholder="e.g., blue fly, green meat" /></div>
-				</div>
-				<div class="grid cols-3">
-					<div><label for="speedBall">Speed @ ball (mph)</label><input id="speedBall" type="number" inputmode="decimal" /></div>
-					<div><label for="sog">SOG (mph)</label><input id="sog" type="number" inputmode="decimal" /></div>
-					<div><label for="strikeDepthSeen">Strike depth seen (ft)</label><input id="strikeDepthSeen" type="number" inputmode="numeric" /></div>
+					<div><label for="lureColor">Color / pattern</label><select id="lureColor"></select></div>
+					<div><label for="attractor">Attractor / flasher</label><select id="attractor"></select></div>
+					<div><label for="flyMeat">Fly / meat color</label><select id="flyMeat"></select></div>
 				</div>
 				<!-- Downrigger speed calculator dropdown (moved from index.html) -->
 				<details id="riggerCalc">
@@ -249,6 +247,11 @@
 				  </div>
 				  <div id="riggerResult" class="hint" style="margin-top:8px"></div>
 				</details>
+				<div class="grid cols-3">
+					<div><label for="speedBall">Speed @ ball (mph)</label><input id="speedBall" type="number" inputmode="decimal" /></div>
+					<div><label for="sog">SOG (mph)</label><input id="sog" type="number" inputmode="decimal" /></div>
+					<div><label for="strikeDepthSeen">Strike depth seen (ft)</label><input id="strikeDepthSeen" type="number" inputmode="numeric" /></div>
+				</div>
 				<div class="grid cols-3">
 					<div><label for="species">Species</label><select id="species"></select></div>
 					<div><label for="lengthIn">Length (in)</label><input id="lengthIn" type="number" inputmode="decimal" /></div>
@@ -321,6 +324,9 @@
 					<div><label for="listPlatform">Platform options (one per line)</label><textarea id="listPlatform"></textarea></div>
 					<div><label for="listLineType">Line types</label><textarea id="listLineType"></textarea></div>
 					<div><label for="listLureType">Lure types</label><textarea id="listLureType"></textarea></div>
+					<div><label for="listLureColors">Lure colors / patterns</label><textarea id="listLureColors"></textarea></div>
+					<div><label for="listAttractors">Attractors / flashers</label><textarea id="listAttractors"></textarea></div>
+					<div><label for="listFlyMeat">Fly / meat colors</label><textarea id="listFlyMeat"></textarea></div>
 					<div><label for="listSpecies">Species</label><textarea id="listSpecies"></textarea></div>
 					<div><label for="listTrollDir">Troll directions</label><textarea id="listTrollDir"></textarea></div>
 					<div><label for="listClouds">Cloud cover</label><textarea id="listClouds"></textarea></div>
@@ -455,9 +461,10 @@
 									if(pct<=10) opt = 'Clear'; else if(pct<=50) opt = 'Partly'; else opt = 'Overcast';
 									// pick matching option if present
 									const found = Array.from(cloudsEl.options).find(o=>o.text.toLowerCase().startsWith(opt.toLowerCase()));
-									if(found) cloudsEl.value = found.value || found.text;
+									if(found) { cloudsEl.value = found.value || found.text; }
+									else { try{ cloudsEl.insertAdjacentHTML('beforeend', `<option>${opt}</option>`); cloudsEl.value = opt; }catch(_){} }
 								}
-								if(cur && state.trips[cur]) state.trips[cur].header.clouds = String(wm.cloudPct);
+								if(cur && state.trips[cur]) state.trips[cur].header.clouds = opt;
 							}
 							// attempt to fetch marine / surface data (sea surface temp, waves)
 							try{
@@ -719,6 +726,11 @@
 								const hav = (a,b)=>{ const R=6371; const dLat=toR(b.lat-a.lat); const dLon=toR(b.lon-a.lon); const la=toR(a.lat), lb=toR(b.lat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
 								let best=null, bestD=Infinity; stations.forEach(s=>{ const d = hav({lat: lat, lon: lon}, {lat:s.lat, lon:s.lon}); if(d<bestD){ bestD=d; best=s; } }); if(best) stationId = best.id || '';
 							}
+							// Fallback: if no station or port still empty, set Port to lat, lon
+							try{
+								const portEl2 = document.getElementById('port');
+								if(portEl2 && !portEl2.value){ const v = lat + ', ' + lon; portEl2.value = v; if(cur && state.trips[cur]) state.trips[cur].header.port = v; }
+							}catch(_){ }
 						}catch(e){ console.warn('nearest station lookup failed', e); }
 						// build URL by substituting {station},{lat},{lon}
 						let url = tpl.replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
@@ -816,7 +828,7 @@
 	const LS_KEY = 'blfl.state.v2';
 	let state = load() || { trips: {}, lists: defaults(), dataVersion:3, settings:{quickMode:false, sticky:true} };
 	let pendingMarineUndo = null;
-		function defaults(){ return { Platform:["Downrigger","Dipsy","Copper","Leadcore","Planer Board","Flatline"], LineType:["Wire","Braid","Mono","Fluorocarbon","Copper","Leadcore"], LureType:["Spoon","Plug","Flasher/Fly","Meat Rig","Spin-n-Glow","Other"], Species:["Chinook (King)","Coho","Steelhead","Lake Trout","Brown Trout","Other"], TrollDirection:["N","NE","E","SE","S","SW","W","NW"], Clouds:["Clear","Partly","Overcast","Fog"], HookLocation:["Jaw","Corner","Tongue","Outside"] }; }
+		function defaults(){ return { Platform:["Downrigger","Dipsy","Copper","Leadcore","Planer Board","Flatline"], LineType:["Wire","Braid","Mono","Fluorocarbon","Copper","Leadcore"], LureType:["Spoon","Plug","Flasher/Fly","Meat Rig","Spin-n-Glow","Other"], LureColors:["NBK","Blue Dolphin","UV Blue/Green","Glow Green","Glow White","Orange/Silver","Green Dolphin","UV Stud","Blue Bubble","Chrome/Green","Chrome/Blue","Bloody Nose"], Attractors:["8\" White Crush","8\" UV Stud","11\" Chrome-Green","11\" White Paddle","8\" Blue Bubble","8\" Green Dot"], FlyMeat:["Blue Fly","Green Fly","Blue/Green Fly","Green Meat","Blue Meat","UV Fly"], Species:["Chinook (King)","Coho","Steelhead","Lake Trout","Brown Trout","Other"], TrollDirection:["N","NE","E","SE","S","SW","W","NW"], Clouds:["Clear","Partly","Overcast","Fog"], HookLocation:["Jaw","Corner","Tongue","Outside"] }; }
 	function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
 	// small helper to indicate saved status in the UI
 	function indicateSaved(){ try{ const s = document.getElementById('saveStatus'); if(!s) return; s.textContent = 'Saved • ' + new Date().toLocaleTimeString(); s.style.opacity = '1'; setTimeout(()=>{ s.textContent = 'Saved'; }, 2500); }catch(e){} }
@@ -827,15 +839,16 @@
 	async function getPhoto(entryId){ const db=await openDB(); return await new Promise((res,rej)=>{ const tx=db.transaction('photos','readonly'); const req=tx.objectStore('photos').get(entryId); req.onsuccess=()=>res((req.result && req.result.dataURL) || ''); req.onerror=()=>rej(req.error); }); }
 		async function deletePhoto(entryId){ const db=await openDB(); await new Promise((res,rej)=>{ const tx=db.transaction('photos','readwrite'); tx.objectStore('photos').delete(entryId); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
 	// (Removed duplicate event listener for .tab-btn)
-		function fillSelect(id, arr){ const el=$(id); el.innerHTML = '<option value="—">—</option>' + arr.map(v=>`<option>${v}</option>`).join(''); }
-		function fillAllSelects(){ fillSelect('#platform', state.lists.Platform); fillSelect('#lineType', state.lists.LineType); fillSelect('#lureType', state.lists.LureType); fillSelect('#species', state.lists.Species); fillSelect('#trollDir', state.lists.TrollDirection); fillSelect('#clouds', state.lists.Clouds); fillSelect('#hookLoc', state.lists.HookLocation); }
-		function listsToTextarea(){ $('#listPlatform').value = state.lists.Platform.join('\n'); $('#listLineType').value = state.lists.LineType.join('\n'); $('#listLureType').value = state.lists.LureType.join('\n'); $('#listSpecies').value = state.lists.Species.join('\n'); $('#listTrollDir').value = state.lists.TrollDirection.join('\n'); $('#listClouds').value = state.lists.Clouds.join('\n'); $('#listHookLoc').value = state.lists.HookLocation.join('\n'); }
-	function textareaToLists(){ const split=t=>t.split('\n').map(s=>s.trim()).filter(Boolean); state.lists.Platform=split($('#listPlatform').value); state.lists.LineType=split($('#listLineType').value); state.lists.LureType=split($('#listLureType').value); state.lists.Species=split($('#listSpecies').value); state.lists.TrollDirection=split($('#listTrollDir').value); state.lists.Clouds=split($('#listClouds').value); state.lists.HookLocation=split($('#listHookLoc').value); save(); indicateSaved(); fillAllSelects(); }
+		function fillSelect(id, arr){ const el=$(id); if(!el) return; const values = (Array.isArray(arr) && arr.length) ? arr : []; el.innerHTML = '<option value="">—</option>' + values.map(v=>`<option>${v}</option>`).join(''); }
+		function ensureListsSeeded(){ const d=defaults(); state.lists = state.lists || {}; const keys=["Platform","LineType","LureType","LureColors","Attractors","FlyMeat","Species","TrollDirection","Clouds","HookLocation"]; keys.forEach(k=>{ if(!Array.isArray(state.lists[k]) || !state.lists[k].length){ state.lists[k] = d[k].slice(); } }); }
+		function fillAllSelects(){ ensureListsSeeded(); fillSelect('#platform', state.lists.Platform); fillSelect('#lureType', state.lists.LureType); fillSelect('#species', state.lists.Species); fillSelect('#trollDir', state.lists.TrollDirection); fillSelect('#clouds', state.lists.Clouds); fillSelect('#lureColor', state.lists.LureColors); fillSelect('#attractor', state.lists.Attractors); fillSelect('#flyMeat', state.lists.FlyMeat); }
+		function listsToTextarea(){ ensureListsSeeded(); $('#listPlatform').value = state.lists.Platform.join('\n'); $('#listLineType').value = state.lists.LineType.join('\n'); $('#listLureType').value = state.lists.LureType.join('\n'); $('#listLureColors').value = state.lists.LureColors.join('\n'); $('#listAttractors').value = state.lists.Attractors.join('\n'); $('#listFlyMeat').value = state.lists.FlyMeat.join('\n'); $('#listSpecies').value = state.lists.Species.join('\n'); $('#listTrollDir').value = state.lists.TrollDirection.join('\n'); $('#listClouds').value = state.lists.Clouds.join('\n'); $('#listHookLoc').value = state.lists.HookLocation.join('\n'); }
+		function textareaToLists(){ const split=t=>t.split('\n').map(s=>s.trim()).filter(Boolean); state.lists = state.lists || {}; state.lists.Platform=split($('#listPlatform').value); state.lists.LineType=split($('#listLineType').value); state.lists.LureType=split($('#listLureType').value); state.lists.LureColors=split($('#listLureColors').value); state.lists.Attractors=split($('#listAttractors').value); state.lists.FlyMeat=split($('#listFlyMeat').value); state.lists.Species=split($('#listSpecies').value); state.lists.TrollDirection=split($('#listTrollDir').value); state.lists.Clouds=split($('#listClouds').value); state.lists.HookLocation=split($('#listHookLoc').value); save(); indicateSaved(); fillAllSelects(); }
 	// (Removed duplicate event listeners for #saveLists and #restoreDefaults)
 		function currentTripId(){ return $('#tripSelect').value || null; }
 	function ensureTrip(){ let id=currentTripId(); if(!id){ id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; $('#tripSelect').value=id; save(); indicateSaved(); refreshTripSelect(); } return id; }
 	function refreshTripSelect(){ const sel=$('#tripSelect'); const opts=Object.values(state.trips).sort((a,b)=>{ const ad=(b.header && b.header.date) || ''; const bd=(a.header && a.header.date) || ''; return ad.localeCompare(bd); }); sel.innerHTML = opts.map(t=>`<option value="${t.id}">${(t.header && t.header.date)||'(no date)'} • ${ (t.header && t.header.port) || 'Port'}</option>`).join(''); }
-	function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value, gearNotes:$('#gearNotes')?$('#gearNotes').value:'' }; state.trips[id].updatedAt=Date.now(); save(); refreshTripSelect(); $('#tripSelect').value=id; alert('Trip header saved.'); location.hash = '#tab-log'; }
+	function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value, gearNotes:$('#gearNotes')?$('#gearNotes').value:'' }; state.trips[id].updatedAt=Date.now(); save(); refreshTripSelect(); $('#tripSelect').value=id; toast('Trip header saved'); setTimeout(hideToast, 1200); location.hash = '#tab-log'; try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } setTimeout(()=>{ try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } }, 50); }
 
 	// Determine if a trip is "active": header minimally filled and not ended
 	function isTripActive(){ const t=state.trips[currentTripId()]; if(!t) return false; const h=t.header||{}; return !!(h.date || h.port || (t.entries && t.entries.length)); }
@@ -1052,7 +1065,7 @@
 		function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0);} }
 		function hideToast(){ const el=$('#toast'); el.style.display='none'; }
 		function showUndo(){ toast('Entry deleted', true); }
-		function init(){ fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); // load marine JSON URL into the settings input
+		function init(){ ensureListsSeeded(); fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); // load marine JSON URL into the settings input
 		try{ const el = $('#marineJsonUrl'); if(el) el.value = (state.settings && state.settings.marineJsonUrl) || ''; }catch(e){}
 	try{ const st = $('#stationJsonTemplate'); if(st) st.value = (state.settings && state.settings.stationJsonTemplate) || 'https://blfl-ndbc-proxy.elliottdanielp.workers.dev/stations/{station}.json'; }catch(e){}
 		// load sheet prefs
@@ -1205,8 +1218,8 @@
 		const toggle = document.getElementById('navToggleRR');
 		const menu = document.getElementById('navMenuRR');
 		if(!toggle || !menu) return;
-		const links = Array.from(menu.querySelectorAll('a'));
-		function updateActive(){ const h = location.hash || '#tab-setup'; links.forEach(a=>{ const href=a.getAttribute('href')||''; const is=href.startsWith('#') && href===h; if(is) a.setAttribute('aria-current','true'); else a.removeAttribute('aria-current'); }); }
+		const links = Array.from(menu.querySelectorAll('a,button'));
+		function updateActive(){ const h = location.hash || '#tab-setup'; links.forEach(a=>{ const href=a.getAttribute('href')||''; const is=href && href.startsWith('#') && href===h; if(is) a.setAttribute('aria-current','true'); else a.removeAttribute('aria-current'); }); }
 		window.addEventListener('hashchange', updateActive); updateActive();
 		let lastFocused=null;
 		function open(){ lastFocused=document.activeElement; menu.hidden=false; requestAnimationFrame(()=> menu.classList.add('open')); toggle.setAttribute('aria-expanded','true'); const f=menu.querySelector('a,button'); if(f) f.focus(); document.addEventListener('click', onDoc); document.addEventListener('keydown', onKey); }
