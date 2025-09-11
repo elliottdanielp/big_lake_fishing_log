@@ -1,4 +1,4 @@
-const CACHE_NAME = 'blfl-shell-v3';
+const CACHE_NAME = 'blfl-shell-v4';
 const PRECACHE_URLS = [
   'index.html',
   'reel-record.html',

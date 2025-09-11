@@ -134,6 +134,8 @@
 					<a href="#tab-log" class="menu-link">Catch Log</a>
 					<a href="#tab-review" class="menu-link">Review & Export</a>
 					<a href="#tab-settings" class="menu-link">Settings</a>
+					<div class="menu-sep" role="separator"></div>
+					<button id="quickModeMenu" type="button" class="menu-link">Quick Mode: Off</button>
 				</div>
 			</div>
 			<div class="title-container">
@@ -177,6 +179,11 @@
 				<div class="hint">Tip: You can edit dropdown options under <b>Settings → Lists</b>.</div>
 			</div>
 			<div class="card">
+				<div class="section-title">Gear</div>
+				<label for="gearNotes">Notes on gear (rods, reels, boards, rigs)</label>
+				<textarea id="gearNotes" placeholder="e.g., 2 Cannon downriggers, 300/250 copper on Ninja 9.5 boards, dipsy setups..."></textarea>
+			</div>
+			<div class="card">
 				<div class="section-title">Save / load trip</div>
 				<div class="grid cols-2">
 					<button class="btn good" id="saveTrip">Save header</button>
@@ -189,7 +196,18 @@
 		</section>
 		<section id="tab-log" class="grid hide">
 			<div class="card">
-				<div class="section-title">Log a catch / bite</div>
+				<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+					<div class="section-title">Log a catch / bite</div>
+					<div style="position:relative">
+						<button id="logBiteBtn" class="icon-btn" type="button" title="Log a bite" aria-haspopup="true" aria-expanded="false">🎣✖</button>
+						<div id="logBiteMenu" class="menu-list" hidden style="right:0; left:auto; min-width:200px">
+							<div class="menu-label">Log Bite on...</div>
+							<button class="menu-link" data-bite="Downrigger" type="button">Downrigger</button>
+							<button class="menu-link" data-bite="Planer Board" type="button">Planer Board</button>
+							<button class="menu-link" data-bite="Dipsy" type="button">Dipsy Diver</button>
+						</div>
+					</div>
+				</div>
 				<div class="grid cols-3">
 					<div><label for="time">Time</label><input id="time" type="time" /></div>
 					<div><label for="platform">Platform</label><select id="platform"></select></div>
@@ -204,12 +222,6 @@
 					<div class="cond cond-copper hide"><label for="copperLen">Copper length (ft)</label><input id="copperLen" type="number" inputmode="numeric" /></div>
 					<div class="cond cond-leadcore hide"><label for="leadcoreColors">Leadcore (colors)</label><input id="leadcoreColors" placeholder="e.g., 5c/7c" /></div>
 					<div><label for="targetDepth">Target depth (ft)</label><input id="targetDepth" type="number" inputmode="numeric" /></div>
-					<div><label for="lineOut">Line out (ft)</label><input id="lineOut" type="number" inputmode="numeric" /></div>
-				</div>
-				<div class="grid cols-3">
-					<div><label for="lineType">Line type</label><select id="lineType"></select></div>
-					<div><label for="lineStrength">Line strength (lb)</label><input id="lineStrength" type="number" inputmode="numeric" /></div>
-					<div><label for="leaderLen">Leader length (ft)</label><input id="leaderLen" type="number" inputmode="numeric" /></div>
 				</div>
 				<div class="grid cols-3">
 					<div><label for="lureType">Lure type</label><select id="lureType"></select></div>
@@ -224,13 +236,23 @@
 					<div><label for="sog">SOG (mph)</label><input id="sog" type="number" inputmode="decimal" /></div>
 					<div><label for="strikeDepthSeen">Strike depth seen (ft)</label><input id="strikeDepthSeen" type="number" inputmode="numeric" /></div>
 				</div>
+				<!-- Downrigger speed calculator dropdown (moved from index.html) -->
+				<details id="riggerCalc">
+				  <summary><strong>Downrigger Cannonball Speed Calculator</strong></summary>
+				  <div class="grid cols-3" style="margin-top:10px">
+				    <div><label for="riggerSog">SOG (mph)</label><input id="riggerSog" type="number" inputmode="decimal" placeholder="e.g., 2.6" /></div>
+				    <div><label for="riggerWeight">Cannonball weight (lb)</label><input id="riggerWeight" type="number" inputmode="decimal" placeholder="e.g., 15" /></div>
+				    <div><label for="riggerDepth">Depth (ft)</label><input id="riggerDepth" type="number" inputmode="numeric" placeholder="optional" /></div>
+				  </div>
+				  <div class="row" style="margin-top:8px">
+				    <button id="calcRiggerBtn" class="btn secondary" type="button">Calculate</button>
+				  </div>
+				  <div id="riggerResult" class="hint" style="margin-top:8px"></div>
+				</details>
 				<div class="grid cols-3">
 					<div><label for="species">Species</label><select id="species"></select></div>
 					<div><label for="lengthIn">Length (in)</label><input id="lengthIn" type="number" inputmode="decimal" /></div>
 					<div><label for="weightLb">Weight (lb)</label><input id="weightLb" type="number" inputmode="decimal" /></div>
-					<div><label for="keptRel">Kept / Released</label><select id="keptRel"><option value="">—</option><option>Kept</option><option>Released</option></select></div>
-					<div><label for="landedYN">Landed</label><select id="landedYN"><option value="">—</option><option>Y</option><option>N</option></select></div>
-					<div><label for="hookLoc">Hook location</label><select id="hookLoc"></select></div>
 				</div>
 				<div class="grid cols-2">
 					<div>
@@ -249,7 +271,7 @@
 					<button class="btn secondary" id="dupLast" type="button">Duplicate last</button>
 					<button class="btn secondary" id="cancelEdit" type="button" style="display:none">Cancel edit</button>
 					<button class="btn warn" id="forceSave" type="button" style="display:none">Force save</button>
-					<button class="btn secondary" id="quickToggle" type="button" title="Toggle Quick Log mode">Quick Mode: Off</button>
+					<button class="btn warn" id="endTrip" type="button" title="End current trip, export, and reset">End Trip</button>
 				</div>
 			</div>
 			<div class="card">
@@ -257,7 +279,7 @@
 				<div style="overflow:auto; max-height: 45vh;">
 					<table id="entriesTable">
 						<thead>
-							<tr><th>Time</th><th>Platf.</th><th>Photo</th><th>Lure</th><th>Depths</th><th>Dir/Speed</th><th>Species</th><th>WL</th><th></th></tr>
+							<tr><th>Time</th><th>Platf.</th><th>Photo</th><th>Lure</th><th>Depths</th><th>Dir/Speed</th><th>Species</th><th></th></tr>
 						</thead>
 						<tbody></tbody>
 					</table>
@@ -277,12 +299,10 @@
 				<div class="section-title">Export / backup</div>
 				<div class="grid cols-1">
 					<div style="display:flex;gap:12px">
-						<button class="btn" id="exportCsv">Export catches (CSV)</button>
-						<button class="btn secondary" id="pushToSheet">Push to Google Sheet</button>
 						<button class="btn secondary" id="pushFullTrip">Push full trip (rows)</button>
 					</div>
 				</div>
-				<div class="hint">Note: CSV export is the simplest way to back up your log. Upload the file to Google Drive manually if you want a cloud backup.</div>
+				<div class="hint">Note: trip will be uploaded only with cell service.</div>
 			</div>
 			<div class="card">
 				<div class="section-title">Manage data</div>
@@ -351,10 +371,6 @@
 		</section>
 	</main>
 	<div style="max-width:880px;margin:14px auto 6px;padding:6px 12px;text-align:center;">
-		<div style="margin-bottom:8px">
-			<button class="btn secondary" id="mainSettingsBtn" type="button" title="Open Settings">Settings</button>
-		</div>
-		<button class="btn secondary" id="addToHome" title="How to add to Home Screen">Add to Home</button>
 		<div class="muted" style="margin-top:8px;font-size:14px;">Tip: On iPhone use Safari ▸ Share ▸ Add to Home Screen</div>
 	</div>
 	<div class="footer">© You. Fish hard, log smart.</div>
@@ -363,12 +379,7 @@
 		<button class="btn secondary close" id="lightboxClose">Close</button>
 	</div>
 	<div id="toast"></div>
-	<!-- Mobile bottom action bar -->
-	<div id="bottomBar">
-		<button id="bbAddEntry" class="btn bar-btn good">Add Entry</button>
-		<button id="bbConditions" class="btn bar-btn">Conditions</button>
-		<button id="bbExport" class="btn bar-btn secondary">Export</button>
-	</div>
+	<!-- Mobile bottom action bar removed per request -->
 	<script>
 	// Ensure all event listeners are attached after DOM is loaded
 	const $ = (sel) => document.querySelector(sel);
@@ -558,8 +569,13 @@
 				} catch (err) { console.warn('fetchConditions error', err); toast('Failed to fetch conditions'); }
 			});
 	attach('#saveTrip', 'click', saveHeader);
-	attach('#newTrip', 'click', () => {
-				// ...existing code...
+	attach('#newTrip', 'click', async () => {
+				const id = uid();
+				state.trips[id] = { id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now() };
+				save(); refreshTripSelect();
+				const sel=document.getElementById('tripSelect'); if(sel) sel.value=id;
+				loadHeaderIntoForm(); applyActiveTripGating();
+				toast('New trip started'); setTimeout(hideToast, 1200);
 			});
 	attach('#tripSelect', 'change', () => {
 				// ...existing code...
@@ -599,9 +615,17 @@
 			attach('#exportCsv', 'click', exportCsv);
 
 	// Wire mobile bottom bar buttons (if present)
-	attach('#bbAddEntry', 'click', ()=>{ const b=$('#addEntry'); if(b) b.click(); });
-	attach('#bbConditions', 'click', ()=>{ const b=$('#fetchConditions'); if(b) b.click(); });
-	attach('#bbExport', 'click', ()=>{ const b=$('#exportCsv'); if(b) b.click(); });
+	// bottom bar removed
+
+	// Header menu: Quick Mode toggle from menu
+	attach('#quickModeMenu','click', ()=>{
+		state.settings.quickMode = !state.settings.quickMode;
+		save(); indicateSaved();
+		applyQuickMode();
+		const m = document.getElementById('quickModeMenu'); if(m) m.textContent = 'Quick Mode: ' + (state.settings.quickMode ? 'On' : 'Off');
+		toast('Quick Mode ' + (state.settings.quickMode ? 'On' : 'Off'));
+		setTimeout(hideToast, 1200);
+	});
 
 			// Tab switching for top nav
 			// Hash-based section switching (no top tab bar)
@@ -612,17 +636,28 @@
 				});
 				if(name==='review'){ renderSummary(); renderAnalytics(); }
 				if(name==='log'){ renderEntries(); }
+				// Gate Catch Log visibility if no active trip
+				applyActiveTripGating();
 			}
 			function applyHash(){
 				const h = location.hash || '#tab-setup';
 				const match = /^#tab-(setup|log|review|settings)$/.exec(h);
 				const name = match ? match[1] : 'setup';
+				// If Catch Log requested but trip is not active, redirect to setup
+				if(name === 'log' && !isTripActive()){
+					location.hash = '#tab-setup';
+					showSection('setup');
+					return;
+				}
 				showSection(name);
 				// Always open target section at the top
 				if(name === 'log') { try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } }
 			}
 			window.addEventListener('hashchange', applyHash);
 			applyHash();
+			// Initialize Quick Mode label in menu
+			const qm = document.getElementById('quickModeMenu'); if(qm) qm.textContent = 'Quick Mode: ' + (state.settings.quickMode ? 'On' : 'Off');
+			applyActiveTripGating();
 
 			// Main-column Settings button (above Add to Home) — show settings panel when tapped
 			attach('#mainSettingsBtn', 'click', (e) => {
@@ -781,7 +816,7 @@
 	const LS_KEY = 'blfl.state.v2';
 	let state = load() || { trips: {}, lists: defaults(), dataVersion:3, settings:{quickMode:false, sticky:true} };
 	let pendingMarineUndo = null;
-		function defaults(){ return { Platform:["Downrigger","Dipsy","Copper","Leadcore","Planer","Flatline"], LineType:["Wire","Braid","Mono","Fluorocarbon","Copper","Leadcore"], LureType:["Spoon","Plug","Flasher/Fly","Meat Rig","Spin-n-Glow","Other"], Species:["Chinook (King)","Coho","Steelhead","Lake Trout","Brown Trout","Other"], TrollDirection:["N","NE","E","SE","S","SW","W","NW"], Clouds:["Clear","Partly","Overcast","Fog"], HookLocation:["Jaw","Corner","Tongue","Outside"] }; }
+		function defaults(){ return { Platform:["Downrigger","Dipsy","Copper","Leadcore","Planer Board","Flatline"], LineType:["Wire","Braid","Mono","Fluorocarbon","Copper","Leadcore"], LureType:["Spoon","Plug","Flasher/Fly","Meat Rig","Spin-n-Glow","Other"], Species:["Chinook (King)","Coho","Steelhead","Lake Trout","Brown Trout","Other"], TrollDirection:["N","NE","E","SE","S","SW","W","NW"], Clouds:["Clear","Partly","Overcast","Fog"], HookLocation:["Jaw","Corner","Tongue","Outside"] }; }
 	function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
 	// small helper to indicate saved status in the UI
 	function indicateSaved(){ try{ const s = document.getElementById('saveStatus'); if(!s) return; s.textContent = 'Saved • ' + new Date().toLocaleTimeString(); s.style.opacity = '1'; setTimeout(()=>{ s.textContent = 'Saved'; }, 2500); }catch(e){} }
@@ -800,10 +835,50 @@
 		function currentTripId(){ return $('#tripSelect').value || null; }
 	function ensureTrip(){ let id=currentTripId(); if(!id){ id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; $('#tripSelect').value=id; save(); indicateSaved(); refreshTripSelect(); } return id; }
 	function refreshTripSelect(){ const sel=$('#tripSelect'); const opts=Object.values(state.trips).sort((a,b)=>{ const ad=(b.header && b.header.date) || ''; const bd=(a.header && a.header.date) || ''; return ad.localeCompare(bd); }); sel.innerHTML = opts.map(t=>`<option value="${t.id}">${(t.header && t.header.date)||'(no date)'} • ${ (t.header && t.header.port) || 'Port'}</option>`).join(''); }
-	function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value }; state.trips[id].updatedAt=Date.now(); save(); refreshTripSelect(); $('#tripSelect').value=id; alert('Trip header saved.'); location.hash = '#tab-log'; }
+	function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value, gearNotes:$('#gearNotes')?$('#gearNotes').value:'' }; state.trips[id].updatedAt=Date.now(); save(); refreshTripSelect(); $('#tripSelect').value=id; alert('Trip header saved.'); location.hash = '#tab-log'; }
+
+	// Determine if a trip is "active": header minimally filled and not ended
+	function isTripActive(){ const t=state.trips[currentTripId()]; if(!t) return false; const h=t.header||{}; return !!(h.date || h.port || (t.entries && t.entries.length)); }
+	function applyActiveTripGating(){ const active = isTripActive(); const logSec = document.getElementById('tab-log'); if(logSec){ if(active) logSec.classList.remove('hide'); else logSec.classList.add('hide'); }
+		// Change label to Edit Setup when active
+		try{ const headerTitle = document.querySelector('#tab-setup .section-title'); if(headerTitle){ headerTitle.textContent = active ? 'Edit Setup' : 'Trip header'; headerTitle.style.color = active ? 'var(--accent-2)' : ''; } }catch(e){}
+	}
+
+	// End Trip: export/push then reset to fresh trip
+	async function endTripFlow(){
+		const id = currentTripId(); if(!id) { toast('No trip selected'); return; }
+		const t = state.trips[id]; if(!t) { toast('No trip selected'); return; }
+		// Attempt push when online and configured, but always export CSV locally
+		const url = (state.settings && state.settings.sheetWebAppUrl) ? state.settings.sheetWebAppUrl.trim() : '';
+		const secret = (state.settings && state.settings.sheetSecret) ? state.settings.sheetSecret.trim() : '';
+		const online = navigator.onLine;
+		let pushed = false;
+		if(online && url && secret){
+			try{ await pushFullTrip(); pushed = true; }catch(e){ console.warn('endTrip push failed', e); }
+		}
+		try{ await exportCsv(); }catch(e){ console.warn('local export failed', e); }
+		// Reset to a fresh trip (keep preferences)
+		await resetToFreshTrip();
+		location.hash = '#tab-setup';
+		toast('Trip ended • exported locally' + (pushed? ' • pushed to Sheet' : ''));
+		setTimeout(hideToast, 2200);
+	}
+	attach('#endTrip','click', ()=>{ endTripFlow(); });
+
+	async function resetToFreshTrip(){
+		const id = currentTripId(); if(!id) { ensureTrip(); return; }
+		const t = state.trips[id]; if(t){
+			try{ for(const e of (t.entries||[])){ if(e.photo){ try{ await deletePhoto(e.id); }catch(_){} } } }catch(_){ }
+		}
+		// Create new blank trip and select it, keep old trip for history
+		const newId = uid(); state.trips[newId] = { id:newId, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now() };
+		save(); refreshTripSelect();
+		const sel = document.getElementById('tripSelect'); if(sel) sel.value = newId;
+		loadHeaderIntoForm(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); applyActiveTripGating();
+	}
   
 	// (Removed duplicate event listeners for #saveTrip, #newTrip, #tripSelect)
-	function loadHeaderIntoForm(){ const t=state.trips[currentTripId()]; if(!t) return; const h=t.header||{}; $('#tripDate').value=h.date||''; $('#startTime').value=h.startTime||''; $('#port').value=h.port||''; $('#boat').value=h.boat||''; $('#crew').value=h.crew||''; $('#hours').value=h.hours||''; $('#airTemp').value=h.airTemp||''; $('#surfaceTemp').value=h.surfaceTemp||''; $('#wind').value=h.wind||''; $('#waves').value=h.waves||''; $('#clouds').value=h.clouds||''; }
+	function loadHeaderIntoForm(){ const t=state.trips[currentTripId()]; if(!t) return; const h=t.header||{}; $('#tripDate').value=h.date||''; $('#startTime').value=h.startTime||''; $('#port').value=h.port||''; $('#boat').value=h.boat||''; $('#crew').value=h.crew||''; $('#hours').value=h.hours||''; $('#airTemp').value=h.airTemp||''; $('#surfaceTemp').value=h.surfaceTemp||''; $('#wind').value=h.wind||''; $('#waves').value=h.waves||''; $('#clouds').value=h.clouds||''; const g=$('#gearNotes'); if(g) g.value=h.gearNotes||''; }
 	// (Removed duplicate event listener for #platform)
 		function setNow(){ const d=new Date(); $('#time').value=d.toTimeString().slice(0,5); if(!$('#tripDate').value) $('#tripDate').value=d.toISOString().slice(0,10); if(!$('#startTime').value) $('#startTime').value=d.toTimeString().slice(0,5); }
 	// (Removed duplicate event listener for #nowBtn)
@@ -817,8 +892,8 @@
 		function validateEntry(isQuick){ const req=[]; const time=readVal('#time'); const platform=readVal('#platform'); const species=readVal('#species'); const lureType=readVal('#lureType'); const water=readVal('#waterDepth'); const target=readVal('#targetDepth'); if(!time) req.push('#time'); if(!platform) req.push('#platform'); if(!species) req.push('#species'); if(!lureType) req.push('#lureType'); if(!water && !target) { req.push('#waterDepth'); req.push('#targetDepth'); }
 			$$('#tab-log input, #tab-log select').forEach(el=> el.classList.remove('invalid')); req.forEach(sel=>{ const el=$(sel); if(el) el.classList.add('invalid'); }); return { ok: req.length===0, missing:req };
 		}
-		async function addOrUpdateEntry(force=false){ const t=state.trips[ensureTrip()]; const header=t.header; const quick=state.settings.quickMode; const v=validateEntry(quick); if(!v.ok && !force){ $('#forceSave').style.display='inline-block'; toast('Missing required fields. Fill red or tap Force.'); return; } $('#forceSave').style.display='none'; const base={ id: editingEntryId||uid(), time:readVal('#time'), platform:readVal('#platform'), trollDir:readVal('#trollDir'), waterDepth:num(readVal('#waterDepth')), ballDepth:num(readVal('#ballDepth')), ballWeight:num(readVal('#ballWeight')), dipsySize:readVal('#dipsySize'), dipsySetting:readVal('#dipsySetting'), copperLen:num(readVal('#copperLen')), leadcoreColors:readVal('#leadcoreColors'), targetDepth:num(readVal('#targetDepth')), lineOut:num(readVal('#lineOut')), lineType:readVal('#lineType'), lineStrength:num(readVal('#lineStrength')), leaderLen:num(readVal('#leaderLen')), lureType:readVal('#lureType'), lureBrand:readVal('#lureBrand'), lureSize:readVal('#lureSize'), lureColor:readVal('#lureColor'), attractor:readVal('#attractor'), flyMeat:readVal('#flyMeat'), speedBall:num(readVal('#speedBall')), sog:num(readVal('#sog')), strikeDepthSeen:num(readVal('#strikeDepthSeen')), species:readVal('#species'), lengthIn:num(readVal('#lengthIn')), weightLb:num(readVal('#weightLb')), keptRel:readVal('#keptRel')||'Kept', landed:readVal('#landedYN'), hookLoc:readVal('#hookLoc'), gps:readVal('#gps'), notes:readVal('#notes'), photo:false };
-			if(!base.keptRel) base.keptRel='Kept'; if(!base.time) setNow(); base.ts = computeTs(header, base.time); if(pendingPhotoDataURL){ try{ await savePhoto(base.id, pendingPhotoDataURL); base.photo=true; }catch(e){ alert('Could not save photo: '+e.message); } }
+			async function addOrUpdateEntry(force=false){ const t=state.trips[ensureTrip()]; const header=t.header; const quick=state.settings.quickMode; const v=validateEntry(quick); if(!v.ok && !force){ $('#forceSave').style.display='inline-block'; toast('Missing required fields. Fill red or tap Force.'); return; } $('#forceSave').style.display='none'; const base={ id: editingEntryId||uid(), time:readVal('#time'), platform:readVal('#platform'), trollDir:readVal('#trollDir'), waterDepth:num(readVal('#waterDepth')), ballDepth:num(readVal('#ballDepth')), ballWeight:num(readVal('#ballWeight')), dipsySize:readVal('#dipsySize'), dipsySetting:readVal('#dipsySetting'), copperLen:num(readVal('#copperLen')), leadcoreColors:readVal('#leadcoreColors'), targetDepth:num(readVal('#targetDepth')), lureType:readVal('#lureType'), lureBrand:readVal('#lureBrand'), lureSize:readVal('#lureSize'), lureColor:readVal('#lureColor'), attractor:readVal('#attractor'), flyMeat:readVal('#flyMeat'), speedBall:num(readVal('#speedBall')), sog:num(readVal('#sog')), strikeDepthSeen:num(readVal('#strikeDepthSeen')), species:readVal('#species'), lengthIn:num(readVal('#lengthIn')), weightLb:num(readVal('#weightLb')), gps:readVal('#gps'), notes:readVal('#notes'), photo:false };
+				if(!base.time) setNow(); base.ts = computeTs(header, base.time); if(pendingPhotoDataURL){ try{ await savePhoto(base.id, pendingPhotoDataURL); base.photo=true; }catch(e){ alert('Could not save photo: '+e.message); } }
 			if(editingEntryId){ const idx=t.entries.findIndex(e=>e.id===editingEntryId); if(idx>-1){ const existingPhoto=t.entries[idx].photo; if(existingPhoto && !base.photo) base.photo=true; t.entries[idx]=Object.assign({}, t.entries[idx], base); toast('Entry updated'); }
 			} else { t.entries.push(base); if(state.settings.sticky){ // keep lure fields
 					['lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','lineType','lineStrength'].forEach(id=>{/*sticky implies leave value*/});
@@ -826,10 +901,10 @@
 			}
 	t.updatedAt=Date.now(); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); if(editingEntryId){ setEditing(false); clearCatchForm(false); } else { clearCatchForm(!state.settings.sticky); }
 		}
-	function clearCatchForm(clearSticky){ $$('#tab-log input, #tab-log textarea, #tab-log select').forEach(el=>{ if(['time'].includes(el.id)) { setNow(); return; } if(!clearSticky && ['lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','lineType','lineStrength'].includes(el.id)) return; if(['platform','trollDir','species','keptRel','landedYN','hookLoc','waterDepth','targetDepth'].includes(el.id)) { el.value=''; } else if(el.tagName==='TEXTAREA' || el.tagName==='INPUT' || el.tagName==='SELECT'){ el.value=''; } }); $('#keptRel').value='Kept'; $$('.cond').forEach(x=>x.classList.add('hide')); pendingPhotoDataURL=''; photoInput.value=''; photoPreview.classList.add('hide'); photoPreview.src=''; }
+	function clearCatchForm(clearSticky){ $$('#tab-log input, #tab-log textarea, #tab-log select').forEach(el=>{ if(['time'].includes(el.id)) { setNow(); return; } if(!clearSticky && ['lureType','lureBrand','lureSize','lureColor','attractor','flyMeat'].includes(el.id)) return; if(['platform','trollDir','species','waterDepth','targetDepth'].includes(el.id)) { el.value=''; } else if(el.tagName==='TEXTAREA' || el.tagName==='INPUT' || el.tagName==='SELECT'){ el.value=''; } }); $$('.cond').forEach(x=>x.classList.add('hide')); pendingPhotoDataURL=''; photoInput.value=''; photoPreview.classList.add('hide'); photoPreview.src=''; }
 	// (Removed duplicate event listener for #resetForm)
-	async function renderEntries(){ const t=state.trips[currentTripId()]; const tbody=$('#entriesTable tbody'); if(!t){ tbody.innerHTML=''; return; } const rows=await Promise.all(t.entries.map(async e=>{ const lure=[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '); const depths=[`W:${e.waterDepth||'-'}`,`T:${e.targetDepth||'-'}`,(e.platform==='Downrigger'?`B:${e.ballDepth||'-'}`:'')].filter(Boolean).join(' / '); const dirSpd=[e.trollDir, e.speedBall?`${e.speedBall} mph`:''].filter(Boolean).join(' • '); const wl=[e.landed||'-', e.keptRel||'-'].join('/'); let photoCell=''; if(e.photo){ const durl=await getPhoto(e.id); photoCell = durl ? `<img src="${durl}" class="thumb" alt="thumb" data-view="${e.id}"/>` : '📷'; } else { photoCell=''; } return `<tr><td>${e.time||''}</td><td><span class="pill badge">${e.platform||''}</span></td><td>${photoCell}</td><td>${lure}</td><td>${depths}</td><td>${dirSpd}</td><td>${e.species||''}</td><td>${wl}</td><td style="text-align:right;white-space:nowrap"><button class="btn secondary" data-edit="${e.id}">Edit</button> <button class="btn secondary" data-viewbtn="${e.id}">View</button> <button class="btn secondary" data-del="${e.id}">Delete</button></td></tr>`; })); tbody.innerHTML = rows.join(''); $$('button[data-del]').forEach(b=> b.onclick = ()=>{ delEntry(b.dataset.del); }); $$('button[data-viewbtn]').forEach(b=> b.onclick = ()=>{ openLightbox(b.dataset.viewbtn); }); $$('button[data-edit]').forEach(b=> b.onclick = ()=>{ startEdit(b.dataset.edit); }); $$('img[data-view]').forEach(img=> img.onclick = ()=>{ openLightbox(img.dataset.view); }); }
-	function loadEntryIntoForm(e, duplicate=false){ ['time','platform','trollDir','waterDepth','ballDepth','ballWeight','dipsySize','dipsySetting','copperLen','leadcoreColors','targetDepth','lineOut','lineType','lineStrength','leaderLen','lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','speedBall','sog','strikeDepthSeen','species','lengthIn','weightLb','keptRel','landedYN','hookLoc','gps','notes'].forEach(id=>{ const el=$('#'+id); if(el && e[id.replace('landedYN','landed')]) el.value = e[id.replace('landedYN','landed')] ?? ''; }); if(e.platform) $('#platform').dispatchEvent(new Event('change')); if(!duplicate){ editingEntryId=e.id; setEditing(true); pendingPhotoDataURL=''; photoPreview.classList.add('hide'); photoPreview.src=''; } }
+	async function renderEntries(){ const t=state.trips[currentTripId()]; const tbody=$('#entriesTable tbody'); if(!t){ tbody.innerHTML=''; return; } const rows=await Promise.all(t.entries.map(async e=>{ const lure=[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '); const depths=[`W:${e.waterDepth||'-'}`,`T:${e.targetDepth||'-'}`,(e.platform==='Downrigger'?`B:${e.ballDepth||'-'}`:'')].filter(Boolean).join(' / '); const dirSpd=[e.trollDir, e.speedBall?`${e.speedBall} mph`:''].filter(Boolean).join(' • '); let photoCell=''; if(e.photo){ const durl=await getPhoto(e.id); photoCell = durl ? `<img src="${durl}" class="thumb" alt="thumb" data-view="${e.id}"/>` : '📷'; } else { photoCell=''; } return `<tr><td>${e.time||''}</td><td><span class="pill badge">${e.platform||''}</span></td><td>${photoCell}</td><td>${lure}</td><td>${depths}</td><td>${dirSpd}</td><td>${e.species||''}</td><td style="text-align:right;white-space:nowrap"><button class="btn secondary" data-edit="${e.id}">Edit</button> <button class="btn secondary" data-viewbtn="${e.id}">View</button> <button class="btn secondary" data-del="${e.id}">Delete</button></td></tr>`; })); tbody.innerHTML = rows.join(''); $$('button[data-del]').forEach(b=> b.onclick = ()=>{ delEntry(b.dataset.del); }); $$('button[data-viewbtn]').forEach(b=> b.onclick = ()=>{ openLightbox(b.dataset.viewbtn); }); $$('button[data-edit]').forEach(b=> b.onclick = ()=>{ startEdit(b.dataset.edit); }); $$('img[data-view]').forEach(img=> img.onclick = ()=>{ openLightbox(img.dataset.view); }); }
+	function loadEntryIntoForm(e, duplicate=false){ ['time','platform','trollDir','waterDepth','ballDepth','ballWeight','dipsySize','dipsySetting','copperLen','leadcoreColors','targetDepth','lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','speedBall','sog','strikeDepthSeen','species','lengthIn','weightLb','gps','notes'].forEach(id=>{ const el=$('#'+id); if(el && e[id]) el.value = e[id] ?? ''; }); if(e.platform) $('#platform').dispatchEvent(new Event('change')); if(!duplicate){ editingEntryId=e.id; setEditing(true); pendingPhotoDataURL=''; photoPreview.classList.add('hide'); photoPreview.src=''; } }
 	function startEdit(id){ const t=state.trips[currentTripId()]; if(!t) return; const e=t.entries.find(x=>x.id===id); if(!e) return; loadEntryIntoForm(e,false); toast('Editing entry'); }
 	async function delEntry(id){ const t=state.trips[currentTripId()]; if(!t) return; const e=t.entries.find(x=>x.id===id); if(!e) return; const photoData = e.photo ? await getPhoto(e.id) : null; t.entries = t.entries.filter(x=>x.id!==id); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); scheduleUndo({ entry:e, photo:photoData }); }
 	function scheduleUndo(payload){ pendingDelete=payload; showUndo(); if(undoTimer) clearTimeout(undoTimer); undoTimer=setTimeout(()=>{ finalizeDelete(); }, UNDO_MS); }
@@ -849,12 +924,12 @@
 		}
 		function mode(arr){ if(!arr.length) return ''; const map=new Map(); arr.forEach(v=>map.set(v,(map.get(v)||0)+1)); let m='',c=0; map.forEach((n,k)=>{ if(n>c){c=n;m=k;} }); return m; }
 		function toCsvRow(fields){ return fields.map(v=>{ if(v===null||v===undefined) v=''; v=String(v); if(/[",\n]/.test(v)) v='"'+v.replace(/"/g,'""')+'"'; return v; }).join(','); }
-	async function exportCsv(){ const t=state.trips[currentTripId()]; if(!t) return alert('No trip.'); const h=['TripDate','Time','Timestamp','PortArea','GPS_Lat','GPS_Lon','Waypoint','WaterDepth_ft','SurfaceTemp_F','Platform','RodPosition','LineType','LineStrength_lb','LineLengthOut_ft','DipsySize','DipsySetting','RiggerBallWeight_lb','RiggerBallDepth_ft','TargetDepth_ft','StrikeDepthSeen_ft','SpeedAtBall_mph','SOG_mph','TrollDirection','LureType','LureBrand','LureModel','LureSize','LureColor','LeaderLength_ft','Attractor/Flasher','Fly/MeatColor','Species','Length_in','Weight_lb','KeptOrReleased','HookLocation','Landed_YN','FightTime_min','Notes','HasPhoto']; const lines=[toCsvRow(h)]; const hdr=t.header||{};
+		async function exportCsv(){ const t=state.trips[currentTripId()]; if(!t) return alert('No trip.'); const h=['TripDate','Time','Timestamp','PortArea','GPS_Lat','GPS_Lon','Waypoint','WaterDepth_ft','SurfaceTemp_F','Platform','DipsySize','DipsySetting','RiggerBallWeight_lb','RiggerBallDepth_ft','TargetDepth_ft','StrikeDepthSeen_ft','SpeedAtBall_mph','SOG_mph','TrollDirection','LureType','LureBrand','LureModel','LureSize','LureColor','Attractor/Flasher','Fly/MeatColor','Species','Length_in','Weight_lb','Notes','HasPhoto']; const lines=[toCsvRow(h)]; const hdr=t.header||{};
 		for(const e of t.entries){
 			const parts=(e.gps||'').split(',');
 			const lat=(parts[0] && parts[0].trim())||'';
 			const lon=(parts[1] && parts[1].trim())||'';
-			const row=[
+				const row=[
 				hdr.date||'',             // TripDate
 				e.time||'',               // Time
 				e.ts||'',                 // Timestamp
@@ -865,10 +940,6 @@
 				e.waterDepth||'',         // WaterDepth_ft (inserted)
 				hdr.surfaceTemp||'',      // SurfaceTemp_F
 				e.platform||'',           // Platform
-				'',                       // RodPosition
-				e.lineType||'',           // LineType
-				e.lineStrength||'',       // LineStrength_lb
-				e.lineOut||'',            // LineLengthOut_ft
 				e.dipsySize||'',          // DipsySize
 				e.dipsySetting||'',       // DipsySetting
 				e.ballWeight||'',         // RiggerBallWeight_lb
@@ -883,16 +954,11 @@
 				'',                       // LureModel
 				e.lureSize||'',           // LureSize
 				e.lureColor||'',          // LureColor
-				e.leaderLen||'',          // LeaderLength_ft
 				e.attractor||'',          // Attractor/Flasher
 				e.flyMeat||'',            // Fly/MeatColor
 				e.species||'',            // Species
 				e.lengthIn||'',           // Length_in
 				e.weightLb||'',           // Weight_lb
-				e.keptRel||'',            // KeptOrReleased
-				e.hookLoc||'',            // HookLocation
-				e.landed||'',             // Landed_YN
-				'',                       // FightTime_min
 				e.notes||'',              // Notes
 				e.photo?'Y':'N'           // HasPhoto
 			];
@@ -979,8 +1045,10 @@
 	savePrefs = function(){ _oldSavePrefs(); state.settings.sheetWebAppUrl = ($('#sheetWebAppUrl') && $('#sheetWebAppUrl').value) ? $('#sheetWebAppUrl').value.trim() : ''; state.settings.sheetSecret = ($('#sheetSecret') && $('#sheetSecret').value) ? $('#sheetSecret').value.trim() : ''; save(); indicateSaved(); toast('Preferences saved'); };
 	// reattach handler so the button invokes the updated savePrefs wrapper
 	attach('#savePrefs','click', savePrefs);
-		function applyQuickMode(){ const quick = state.settings.quickMode; $('#quickToggle').textContent = 'Quick Mode: '+(quick?'On':'Off'); const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth','keptRel','landedYN']); $$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } }); }
-	attach('#quickToggle','click', ()=>{ state.settings.quickMode=!state.settings.quickMode; save(); indicateSaved(); applyQuickMode(); });
+		function applyQuickMode(){ const quick = state.settings.quickMode; // Update menu item too
+			const qm=document.getElementById('quickModeMenu'); if(qm) qm.textContent = 'Quick Mode: '+(quick?'On':'Off');
+			const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth']);
+			$$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } }); }
 		function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0);} }
 		function hideToast(){ const el=$('#toast'); el.style.display='none'; }
 		function showUndo(){ toast('Entry deleted', true); }
@@ -996,10 +1064,10 @@
 			loadHeaderIntoForm(); applyQuickMode(); updateLogBadge(); }
 	attach('#prefSticky','change', ()=>{ /* immediate reflection not needed */ });
 	attach('#prefQuickDefault','change', ()=>{ /* just state toggle on save */ });
-		$('#keptRel').value='Kept';
 		attach('#quickToggle','dblclick', ()=>{ // quick clear validation marks
 			$$('#tab-log .invalid').forEach(el=>el.classList.remove('invalid')); });
 		init();
+		applyActiveTripGating();
 	// Download button triggers the Catch Conditions flow (useful reminder)
 	// Use guarded attaches for photo input, clear photo and downloadConditions
 	attach('#photoInput', 'change', async () => { const input = document.querySelector('#photoInput'); const f = (input && input.files && input.files[0]); if(!f){ pendingPhotoDataURL=''; if(photoPreview) { photoPreview.classList.add('hide'); photoPreview.src=''; } return; } try{ pendingPhotoDataURL = await fileToDataURLResized(f); if(photoPreview){ photoPreview.src = pendingPhotoDataURL; photoPreview.classList.remove('hide'); } } catch(err){ alert('Photo error: '+err.message); } });
@@ -1065,6 +1133,22 @@
 		}catch(e){ toast('Debug failed'); console.warn('debugStationJson failed', e); }
 	});
 	attach('#downloadConditions','click', ()=>{ if($('#fetchConditions')) $('#fetchConditions').click(); });
+
+	// Log Bite popup behavior
+	(function(){
+		const btn = document.getElementById('logBiteBtn');
+		const menu = document.getElementById('logBiteMenu');
+		if(!btn || !menu) return;
+		let open=false;
+		function show(){ menu.hidden=false; requestAnimationFrame(()=> menu.classList.add('open')); btn.setAttribute('aria-expanded','true'); document.addEventListener('click', onDoc); open=true; }
+		function hide(){ menu.classList.remove('open'); setTimeout(()=>{ menu.hidden=true; }, 120); btn.setAttribute('aria-expanded','false'); document.removeEventListener('click', onDoc); open=false; }
+		function onDoc(e){ if(!menu.contains(e.target) && e.target!==btn) hide(); }
+		btn.addEventListener('click', (e)=>{ e.stopPropagation(); open? hide(): show(); });
+		Array.from(menu.querySelectorAll('[data-bite]')).forEach(el=> el.addEventListener('click', ()=>{ const plat = el.getAttribute('data-bite'); hide(); addBite(plat||''); }));
+	})();
+
+	async function addBite(platform){ const id = ensureTrip(); const t = state.trips[id]; const header = t.header || {}; const now = new Date(); const timeStr = now.toTimeString().slice(0,5); const entry={ id: uid(), time: timeStr, platform: platform, trollDir: readVal('#trollDir')||'', waterDepth: num(readVal('#waterDepth')), targetDepth: num(readVal('#targetDepth')), lureType: readVal('#lureType')||'', lureBrand: readVal('#lureBrand')||'', lureSize: readVal('#lureSize')||'', lureColor: readVal('#lureColor')||'', attractor: readVal('#attractor')||'', flyMeat: readVal('#flyMeat')||'', speedBall: num(readVal('#speedBall')), sog: num(readVal('#sog')), species: readVal('#species')||'', notes: (readVal('#notes')? (readVal('#notes')+' • ') : '') + 'Bite', ts: computeTs(header, timeStr), photo: false };
+		t.entries.push(entry); t.updatedAt=Date.now(); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); toast('Bite logged'); setTimeout(hideToast, 1200); }
 	// Manage Data actions — Clear current, Clear ALL, Delete trip
 	attach('#clearTrip','click', async ()=>{
 		const id = currentTripId(); if(!id) return alert('No trip selected');
@@ -1132,6 +1216,36 @@
 		toggle.addEventListener('click', e=>{ e.stopPropagation(); if(menu.hidden) open(); else close(); });
 		links.forEach(a=> a.addEventListener('click', ()=> setTimeout(close, 50)));
 	})();
+
+// Downrigger cannonball speed calculator (simplified) — moved from index.html
+(function(){
+	function calc(){
+		const sog = parseFloat(document.getElementById('riggerSog')?.value || '0'); // mph
+		const weight = parseFloat(document.getElementById('riggerWeight')?.value || '0'); // lb
+		const depth = parseFloat(document.getElementById('riggerDepth')?.value || '0'); // ft
+		if(!isFinite(sog) || !isFinite(weight)) return;
+		const waterDensity = 62.4; // lb/ft^3
+		const dragCoeff = 0.8;     // assumed drag coefficient
+		const radiusFt = 0.167;    // ~4 in diameter -> 0.167 ft radius
+		const area = Math.PI * radiusFt * radiusFt; // frontal area ft^2
+		const vX = sog * 5280 / 3600; // mph -> ft/s
+		const vY = Math.sqrt(Math.max(0, (2 * weight) / (waterDensity * dragCoeff * area))); // ft/s
+		const vR = Math.sqrt(vX*vX + vY*vY); // ft/s
+		const mph = vR * 0.681818; // ft/s to mph
+		const knots = vR * 0.592484; // ft/s to knots
+		const el = document.getElementById('riggerResult');
+		if(!el) return;
+		el.innerHTML = `<b>Results</b><br>
+			Horizontal (ft/s): ${vX.toFixed(2)}<br>
+			Vertical (ft/s): ${vY.toFixed(2)}<br>
+			Resultant (ft/s): ${vR.toFixed(2)}<br>
+			Resultant (mph): ${mph.toFixed(2)}<br>
+			Resultant (knots): ${knots.toFixed(2)}<br>
+			<span class="hint">Inputs — SOG: ${sog.toFixed(1)} mph • Weight: ${weight.toFixed(0)} lb • Depth: ${depth.toFixed(0)} ft</span>`;
+	}
+	const btn = document.getElementById('calcRiggerBtn');
+	if(btn) btn.addEventListener('click', calc);
+})();
 	</script>
 </body>
 </html>
