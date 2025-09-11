@@ -32,6 +32,7 @@
 		.muted { color:var(--muted); font-size:16px; } .hint { font-size:15px; color:#8cabd8; margin-top:8px; }
 		.btn { background:linear-gradient(180deg,#0e7eed,#0a5fc1); border:none; font-weight:800; letter-spacing:.3px; cursor:pointer; font-size:20px; padding:18px 0; border-radius:16px; }
 			.btn.sm { font-size:16px; padding:10px 12px; border-radius:12px; }
+			.btn.xs { font-size:14px; padding:8px 10px; border-radius:10px; }
 		.btn.secondary { background:#0c111a; border:1.5px solid #2b3e59; color:#cfe3ff; } .btn.good { background:linear-gradient(180deg,#14bd8d,#0da77a); }
 		.btn.warn { background:linear-gradient(180deg,#ffb703,#f77f00); } .btn.danger { background:linear-gradient(180deg,#ff4d4d,#bf2e2e); }
 		table { width:100%; border-collapse: collapse; } th, td { padding:16px; border-bottom:1.5px solid #223145; text-align:left; font-size:18px; }
@@ -157,7 +158,11 @@
 			<div class="card">
 				<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
 					<div class="section-title">Trip header</div>
-					<button class="btn sm" id="fetchConditions" type="button" title="Use GPS to auto-fill conditions">Catch Conditions (GPS)</button>
+					<button class="btn xs" id="fetchConditions" type="button" title="Use GPS to auto-fill conditions">Catch Conditions (GPS)</button>
+				</div>
+				<div class="grid cols-1" style="margin-top:8px">
+					<label for="tripSelect">Current trip</label>
+					<select id="tripSelect"></select>
 				</div>
 				<div class="grid cols-2">
 					<div><label for="tripDate">Date</label><input id="tripDate" type="date" /></div>
@@ -194,9 +199,6 @@
 					<button class="btn good" id="saveTrip">Start Trip</button>
 					<button class="btn secondary" id="newTrip">New trip</button>
 				</div>
-				<div class="spacer"></div>
-				<label for="tripSelect">Current trip</label>
-				<select id="tripSelect"></select>
 			</div>
 		</section>
 		<section id="tab-log" class="grid hide">
@@ -631,7 +633,10 @@
 			function showSection(name){
 				['setup','log','review','settings'].forEach(n=>{
 					const el = document.getElementById('tab-'+n);
-					if(!el) return; if(n===name) el.classList.remove('hide'); else el.classList.add('hide');
+					if(!el) return;
+					const isActive = (n===name);
+					if(isActive) el.classList.remove('hide'); else el.classList.add('hide');
+					el.setAttribute('aria-hidden', isActive ? 'false' : 'true');
 				});
 				if(name==='review'){ renderSummary(); renderAnalytics(); }
 				if(name==='log'){ renderEntries(); }
@@ -852,7 +857,7 @@
 	function isTripActive(){ const t=state.trips[currentTripId()]; return !!(t && t.active === true); }
 	function applyActiveTripGating(){ const active = isTripActive(); const logSec = document.getElementById('tab-log'); if(logSec){ if(active) logSec.classList.remove('hide'); else logSec.classList.add('hide'); }
 		// Title: strictly based on active flag
-		try{ const headerTitle = document.querySelector('#tab-setup .section-title'); if(headerTitle){ headerTitle.textContent = active ? 'Edit Setup' : 'New Setup'; headerTitle.style.color = active ? 'var(--accent-2)' : ''; } }catch(e){}
+	try{ const headerTitle = document.querySelector('#tab-setup .section-title'); if(headerTitle){ headerTitle.textContent = active ? 'Edit Setup' : 'New Trip'; headerTitle.style.color = active ? 'var(--accent-2)' : ''; } }catch(e){}
 		// Menu: hide Catch Log link when inactive
 		try{ const logLink = document.querySelector('#navMenuRR a[href="#tab-log"]'); if(logLink){ logLink.style.display = active ? '' : 'none'; } }catch(e){}
 	}
@@ -903,6 +908,13 @@
 	const photoInput = $('#photoInput'); const photoPreview = $('#photoPreview'); const clearPhotoBtn = $('#clearPhoto'); let pendingPhotoDataURL='';
 	function fileToDataURLResized(file, maxDim=1600, quality=0.82){ return new Promise((resolve,reject)=>{ const fr=new FileReader(); fr.onload=()=>{ const img=new Image(); img.onload=()=>{ const c=document.createElement('canvas'); let w=img.width,h=img.height; const scale=Math.min(1, maxDim/Math.max(w,h)); const nw=Math.max(1,Math.round(w*scale)), nh=Math.max(1,Math.round(h*scale)); c.width=nw; c.height=nh; c.getContext('2d').drawImage(img,0,0,nw,nh); try{ resolve(c.toDataURL('image/jpeg', quality)); }catch(e){ reject(e); } }; img.onerror=reject; img.src=fr.result; }; fr.onerror=reject; fr.readAsDataURL(file); }); }
 	function readVal(id){ const el=document.querySelector(id); return (el && el.value || '').trim(); } function num(x){ return x?Number(x):''; }
+	function fmt12hFromParts(timeStr){ // expects HH:MM or blank
+		if(!timeStr) return '';
+		const m = /^(\d{1,2}):(\d{2})$/.exec(timeStr);
+		if(!m) return timeStr;
+		let h = parseInt(m[1],10); const min=m[2]; const ampm = h>=12? 'PM':'AM'; h = h%12; if(h===0) h=12; return `${h}:${min} ${ampm}`;
+	}
+	function fmt12hFromDate(d){ try{ let h=d.getHours(), m=d.getMinutes(); const ampm=h>=12?'PM':'AM'; h=h%12; if(h===0) h=12; return `${h}:${String(m).padStart(2,'0')} ${ampm}`; }catch(_){ return ''; }}
 	function computeTs(header, timeStr){ if(header && header.date && timeStr){ const ds=header.date+'T'+timeStr+':00'; const d=new Date(ds); if(!isNaN(d)) return d.getTime(); } return Date.now(); }
 		let editingEntryId=null; let undoTimer=null; let pendingDelete=null; const UNDO_MS=12000;
 		function setEditing(on){ editingEntryId = on?editingEntryId:null; $('#cancelEdit').style.display = on?'inline-block':'none'; $('#addEntry').textContent = on?'Update entry':'Save entry'; }
@@ -920,7 +932,7 @@
 		}
 	function clearCatchForm(clearSticky){ $$('#tab-log input, #tab-log textarea, #tab-log select').forEach(el=>{ if(['time'].includes(el.id)) { setNow(); return; } if(!clearSticky && ['lureType','lureBrand','lureSize','lureColor','attractor','flyMeat'].includes(el.id)) return; if(['platform','trollDir','species','waterDepth','targetDepth'].includes(el.id)) { el.value=''; } else if(el.tagName==='TEXTAREA' || el.tagName==='INPUT' || el.tagName==='SELECT'){ el.value=''; } }); $$('.cond').forEach(x=>x.classList.add('hide')); pendingPhotoDataURL=''; photoInput.value=''; photoPreview.classList.add('hide'); photoPreview.src=''; }
 	// (Removed duplicate event listener for #resetForm)
-	async function renderEntries(){ const t=state.trips[currentTripId()]; const tbody=$('#entriesTable tbody'); if(!t){ tbody.innerHTML=''; return; } const rows=await Promise.all(t.entries.map(async e=>{ const lure=[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '); const depths=[`W:${e.waterDepth||'-'}`,`T:${e.targetDepth||'-'}`,(e.platform==='Downrigger'?`B:${e.ballDepth||'-'}`:'')].filter(Boolean).join(' / '); const dirSpd=[e.trollDir, e.speedBall?`${e.speedBall} mph`:''].filter(Boolean).join(' • '); let photoCell=''; if(e.photo){ const durl=await getPhoto(e.id); photoCell = durl ? `<img src="${durl}" class="thumb" alt="thumb" data-view="${e.id}"/>` : '📷'; } else { photoCell=''; } const rowClass = e.isBite ? ' class="bite-row"' : ''; const timeCell = `${e.isBite ? '<span class="pill badge bite">🎯 Bite</span> ' : ''}${e.time||''}`; return `<tr${rowClass}><td>${timeCell}</td><td><span class="pill badge">${e.platform||''}</span></td><td>${photoCell}</td><td>${lure}</td><td>${depths}</td><td>${dirSpd}</td><td>${e.species||''}</td><td style="text-align:right;white-space:nowrap"><button class="btn secondary" data-edit="${e.id}">Edit</button> <button class="btn secondary" data-viewbtn="${e.id}">View</button> <button class="btn secondary" data-del="${e.id}">Delete</button></td></tr>`; })); tbody.innerHTML = rows.join(''); $$('button[data-del]').forEach(b=> b.onclick = ()=>{ delEntry(b.dataset.del); }); $$('button[data-viewbtn]').forEach(b=> b.onclick = ()=>{ openLightbox(b.dataset.viewbtn); }); $$('button[data-edit]').forEach(b=> b.onclick = ()=>{ startEdit(b.dataset.edit); }); $$('img[data-view]').forEach(img=> img.onclick = ()=>{ openLightbox(img.dataset.view); }); }
+	async function renderEntries(){ const t=state.trips[currentTripId()]; const tbody=$('#entriesTable tbody'); if(!t){ tbody.innerHTML=''; return; } const rows=await Promise.all(t.entries.map(async e=>{ const lure=[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '); const depths=[`W:${e.waterDepth||'-'}`,`T:${e.targetDepth||'-'}`,(e.platform==='Downrigger'?`B:${e.ballDepth||'-'}`:'')].filter(Boolean).join(' / '); const dirSpd=[e.trollDir, e.speedBall?`${e.speedBall} mph`:''].filter(Boolean).join(' • '); let photoCell=''; if(e.photo){ const durl=await getPhoto(e.id); photoCell = durl ? `<img src="${durl}" class="thumb" alt="thumb" data-view="${e.id}"/>` : '📷'; } else { photoCell=''; } const rowClass = e.isBite ? ' class="bite-row"' : ''; const timeCell = `${e.isBite ? '<span class="pill badge bite">🎯 Bite</span> ' : ''}${fmt12hFromParts(e.time||'')}`; return `<tr${rowClass}><td>${timeCell}</td><td><span class=\"pill badge\">${e.platform||''}</span></td><td>${photoCell}</td><td>${lure}</td><td>${depths}</td><td>${dirSpd}</td><td>${e.species||''}</td><td style=\"text-align:right;white-space:nowrap\"><button class=\"btn secondary\" data-edit=\"${e.id}\">Edit</button> <button class=\"btn secondary\" data-viewbtn=\"${e.id}\">View</button> <button class=\"btn secondary\" data-del=\"${e.id}\">Delete</button></td></tr>`; })); tbody.innerHTML = rows.join(''); $$('button[data-del]').forEach(b=> b.onclick = ()=>{ delEntry(b.dataset.del); }); $$('button[data-viewbtn]').forEach(b=> b.onclick = ()=>{ openLightbox(b.dataset.viewbtn); }); $$('button[data-edit]').forEach(b=> b.onclick = ()=>{ startEdit(b.dataset.edit); }); $$('img[data-view]').forEach(img=> img.onclick = ()=>{ openLightbox(img.dataset.view); }); }
 	function loadEntryIntoForm(e, duplicate=false){ ['time','platform','trollDir','waterDepth','ballDepth','ballWeight','dipsySize','dipsySetting','copperLen','leadcoreColors','targetDepth','lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','speedBall','sog','strikeDepthSeen','species','lengthIn','weightLb','gps','notes'].forEach(id=>{ const el=$('#'+id); if(el && e[id]) el.value = e[id] ?? ''; }); if(e.platform) $('#platform').dispatchEvent(new Event('change')); if(!duplicate){ editingEntryId=e.id; setEditing(true); pendingPhotoDataURL=''; photoPreview.classList.add('hide'); photoPreview.src=''; } }
 	function startEdit(id){ const t=state.trips[currentTripId()]; if(!t) return; const e=t.entries.find(x=>x.id===id); if(!e) return; loadEntryIntoForm(e,false); toast('Editing entry'); }
 	async function delEntry(id){ const t=state.trips[currentTripId()]; if(!t) return; const e=t.entries.find(x=>x.id===id); if(!e) return; const photoData = e.photo ? await getPhoto(e.id) : null; t.entries = t.entries.filter(x=>x.id!==id); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); scheduleUndo({ entry:e, photo:photoData }); }
@@ -935,7 +947,7 @@
 			function bucket(arr){ const m={}; arr.filter(Number.isFinite).forEach(v=>{ const b=Math.floor(v/10)*10; const label=`${b}-${b+9}`; m[label]=(m[label]||0)+1; }); return Object.entries(m).sort((a,b)=>{ const na=parseInt(a[0]); const nb=parseInt(b[0]); return na-nb; }); }
 			const wdBuckets=bucket(entries.map(e=>e.waterDepth)); const tdBuckets=bucket(entries.map(e=>e.targetDepth)); // timeline 15 min
 			const timeline=(()=>{ const pts=entries.filter(e=>e.ts); if(!pts.length) return []; const min=Math.min(...pts.map(e=>e.ts)); const max=Math.max(...pts.map(e=>e.ts)); const span=15*60*1000; const buckets=[]; for(let tms=Math.floor(min/span)*span; tms<=max; tms+=span){ buckets.push({ t:tms, c:0 }); } pts.forEach(e=>{ const idx=Math.floor((e.ts - buckets[0].t)/span); if(buckets[idx]) buckets[idx].c++; }); return buckets; })();
-			const spark=timeline.map(b=>`<div class="spark" style="width:6px;height:${4+Math.min(30,b.c*6)}px" title="${new Date(b.t).toTimeString().slice(0,5)}: ${b.c}"></div>`).join('');
+			const spark=timeline.map(b=>{ const tt = fmt12hFromDate(new Date(b.t)); return `<div class="spark" style="width:6px;height:${4+Math.min(30,b.c*6)}px" title="${tt}: ${b.c}"></div>`; }).join('');
 			const fmtList=(list)=> list.map(([k,v])=>`${k}: <b>${v}</b>`).join(' • ');
 			box.innerHTML=`<h4>Platforms</h4>${fmtList(platforms)||'-'}<h4>Species</h4>${fmtList(species)||'-'}<h4>Lure Types (Top)</h4>${top(lureTypes)||'-'}<h4>Colors (Top)</h4>${top(colors)||'-'}<h4>Water Depth (10s)</h4>${wdBuckets.map(([k,v])=>`${k}: <b>${v}</b>`).join(' • ')||'-'}<h4>Target Depth (10s)</h4>${tdBuckets.map(([k,v])=>`${k}: <b>${v}</b>`).join(' • ')||'-'}<h4>Timeline 15m</h4><div style="display:flex;align-items:flex-end;height:50px;">${spark}</div>`;
 		}
@@ -948,7 +960,7 @@
 			const lon=(parts[1] && parts[1].trim())||'';
 				const row=[
 				hdr.date||'',             // TripDate
-				e.time||'',               // Time
+				fmt12hFromParts(e.time||''),               // Time
 				e.ts||'',                 // Timestamp
 				hdr.port||'',             // PortArea
 				lat||'',                  // GPS_Lat
@@ -1069,7 +1081,7 @@
 			// Hide rigger calc <details> in Quick Mode
 			try{ const rc = document.getElementById('riggerCalc'); if(rc){ rc.style.display = quick ? 'none' : ''; } }catch(_){ }
 		}
-		function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0);} }
+		function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0); setTimeout(hideToast, 8000); } else { setTimeout(hideToast, 2000); } }
 		function hideToast(){ const el=$('#toast'); el.style.display='none'; }
 		function showUndo(){ toast('Entry deleted', true); }
 		function init(){ ensureListsSeeded(); fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); // load marine JSON URL into the settings input
