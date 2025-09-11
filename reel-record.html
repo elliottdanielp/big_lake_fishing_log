@@ -47,6 +47,10 @@
 	.invalid { border-color: var(--danger)!important; }
 	.badge-count { background:var(--accent); color:#fff; font-size:16px; padding:4px 10px; border-radius:999px; margin-left:10px; line-height:1; }
 	.quick-hidden { display:none !important; }
+	/* Bite highlight styling */
+	.bite-row td { background: rgba(46,208,162,0.08); }
+	.bite-row td:first-child { border-left: 3px solid var(--accent-2); }
+	.pill.badge.bite { background:#0c111a; border:1.5px solid var(--accent-2); color:#b9f3df; margin-right:8px; }
 	.prefs-row { display:flex; gap:16px; flex-wrap:wrap; }
 	.switch { position:relative; display:inline-flex; align-items:center; gap:8px; font-size:18px; cursor:pointer; }
 	.switch input { width:auto; accent-color: var(--accent); }
@@ -565,8 +569,8 @@
 			});
 	attach('#saveTrip', 'click', saveHeader);
 	attach('#newTrip', 'click', async () => {
-				const id = uid();
-				state.trips[id] = { id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now() };
+					const id = uid();
+					state.trips[id] = { id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now() };
 				save(); refreshTripSelect();
 				const sel=document.getElementById('tripSelect'); if(sel) sel.value=id;
 				loadHeaderIntoForm(); applyActiveTripGating();
@@ -840,15 +844,17 @@
 		function textareaToLists(){ const split=t=>t.split('\n').map(s=>s.trim()).filter(Boolean); state.lists = state.lists || {}; state.lists.Platform=split($('#listPlatform').value); state.lists.LineType=split($('#listLineType').value); state.lists.LureType=split($('#listLureType').value); state.lists.LureColors=split($('#listLureColors').value); state.lists.Attractors=split($('#listAttractors').value); state.lists.FlyMeat=split($('#listFlyMeat').value); state.lists.Species=split($('#listSpecies').value); state.lists.TrollDirection=split($('#listTrollDir').value); state.lists.Clouds=split($('#listClouds').value); state.lists.HookLocation=split($('#listHookLoc').value); save(); indicateSaved(); fillAllSelects(); }
 	// (Removed duplicate event listeners for #saveLists and #restoreDefaults)
 		function currentTripId(){ return $('#tripSelect').value || null; }
-	function ensureTrip(){ let id=currentTripId(); if(!id){ id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; $('#tripSelect').value=id; save(); indicateSaved(); refreshTripSelect(); } return id; }
+	function ensureTrip(){ let id=currentTripId(); if(!id){ id=uid(); state.trips[id]={id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()}; $('#tripSelect').value=id; save(); indicateSaved(); refreshTripSelect(); } return id; }
 	function refreshTripSelect(){ const sel=$('#tripSelect'); const opts=Object.values(state.trips).sort((a,b)=>{ const ad=(b.header && b.header.date) || ''; const bd=(a.header && a.header.date) || ''; return ad.localeCompare(bd); }); sel.innerHTML = opts.map(t=>`<option value="${t.id}">${(t.header && t.header.date)||'(no date)'} • ${ (t.header && t.header.port) || 'Port'}</option>`).join(''); }
-	function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value, gearNotes:$('#gearNotes')?$('#gearNotes').value:'' }; state.trips[id].updatedAt=Date.now(); save(); refreshTripSelect(); $('#tripSelect').value=id; toast('Trip header saved'); setTimeout(hideToast, 1200); location.hash = '#tab-log'; try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } setTimeout(()=>{ try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } }, 50); }
+	function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value, gearNotes:$('#gearNotes')?$('#gearNotes').value:'' }; state.trips[id].updatedAt=Date.now(); state.trips[id].active = true; save(); refreshTripSelect(); $('#tripSelect').value=id; toast('Trip started'); setTimeout(hideToast, 1200); location.hash = '#tab-log'; try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } setTimeout(()=>{ try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } }, 50); applyActiveTripGating(); }
 
-	// Determine if a trip is "active": header minimally filled and not ended
-	function isTripActive(){ const t=state.trips[currentTripId()]; if(!t) return false; const h=t.header||{}; return !!(h.date || h.port || (t.entries && t.entries.length)); }
+	// Determine active via explicit flag set on Start Trip and cleared on End/New
+	function isTripActive(){ const t=state.trips[currentTripId()]; return !!(t && t.active === true); }
 	function applyActiveTripGating(){ const active = isTripActive(); const logSec = document.getElementById('tab-log'); if(logSec){ if(active) logSec.classList.remove('hide'); else logSec.classList.add('hide'); }
-		// Change label: New Setup when blank, Edit Setup when any header/entries exist
-		try{ const headerTitle = document.querySelector('#tab-setup .section-title'); if(headerTitle){ const t=state.trips[currentTripId()]; const h=t && t.header ? t.header : {}; const hasAny = !!(h.date || h.port || h.startTime || (t && t.entries && t.entries.length)); headerTitle.textContent = hasAny ? 'Edit Setup' : 'New Setup'; headerTitle.style.color = active ? 'var(--accent-2)' : ''; } }catch(e){}
+		// Title: strictly based on active flag
+		try{ const headerTitle = document.querySelector('#tab-setup .section-title'); if(headerTitle){ headerTitle.textContent = active ? 'Edit Setup' : 'New Setup'; headerTitle.style.color = active ? 'var(--accent-2)' : ''; } }catch(e){}
+		// Menu: hide Catch Log link when inactive
+		try{ const logLink = document.querySelector('#navMenuRR a[href="#tab-log"]'); if(logLink){ logLink.style.display = active ? '' : 'none'; } }catch(e){}
 	}
 
 	// End Trip: export/push then reset to fresh trip
@@ -878,7 +884,8 @@
 			try{ for(const e of (t.entries||[])){ if(e.photo){ try{ await deletePhoto(e.id); }catch(_){} } } }catch(_){ }
 		}
 		// Create new blank trip and select it, keep old trip for history
-		const newId = uid(); state.trips[newId] = { id:newId, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now() };
+		try{ if(t) t.active = false; }catch(_){ }
+		const newId = uid(); state.trips[newId] = { id:newId, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now() };
 		save(); refreshTripSelect();
 		const sel = document.getElementById('tripSelect'); if(sel) sel.value = newId;
 		loadHeaderIntoForm(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); applyActiveTripGating();
@@ -910,7 +917,7 @@
 		}
 	function clearCatchForm(clearSticky){ $$('#tab-log input, #tab-log textarea, #tab-log select').forEach(el=>{ if(['time'].includes(el.id)) { setNow(); return; } if(!clearSticky && ['lureType','lureBrand','lureSize','lureColor','attractor','flyMeat'].includes(el.id)) return; if(['platform','trollDir','species','waterDepth','targetDepth'].includes(el.id)) { el.value=''; } else if(el.tagName==='TEXTAREA' || el.tagName==='INPUT' || el.tagName==='SELECT'){ el.value=''; } }); $$('.cond').forEach(x=>x.classList.add('hide')); pendingPhotoDataURL=''; photoInput.value=''; photoPreview.classList.add('hide'); photoPreview.src=''; }
 	// (Removed duplicate event listener for #resetForm)
-	async function renderEntries(){ const t=state.trips[currentTripId()]; const tbody=$('#entriesTable tbody'); if(!t){ tbody.innerHTML=''; return; } const rows=await Promise.all(t.entries.map(async e=>{ const lure=[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '); const depths=[`W:${e.waterDepth||'-'}`,`T:${e.targetDepth||'-'}`,(e.platform==='Downrigger'?`B:${e.ballDepth||'-'}`:'')].filter(Boolean).join(' / '); const dirSpd=[e.trollDir, e.speedBall?`${e.speedBall} mph`:''].filter(Boolean).join(' • '); let photoCell=''; if(e.photo){ const durl=await getPhoto(e.id); photoCell = durl ? `<img src="${durl}" class="thumb" alt="thumb" data-view="${e.id}"/>` : '📷'; } else { photoCell=''; } return `<tr><td>${e.time||''}</td><td><span class="pill badge">${e.platform||''}</span></td><td>${photoCell}</td><td>${lure}</td><td>${depths}</td><td>${dirSpd}</td><td>${e.species||''}</td><td style="text-align:right;white-space:nowrap"><button class="btn secondary" data-edit="${e.id}">Edit</button> <button class="btn secondary" data-viewbtn="${e.id}">View</button> <button class="btn secondary" data-del="${e.id}">Delete</button></td></tr>`; })); tbody.innerHTML = rows.join(''); $$('button[data-del]').forEach(b=> b.onclick = ()=>{ delEntry(b.dataset.del); }); $$('button[data-viewbtn]').forEach(b=> b.onclick = ()=>{ openLightbox(b.dataset.viewbtn); }); $$('button[data-edit]').forEach(b=> b.onclick = ()=>{ startEdit(b.dataset.edit); }); $$('img[data-view]').forEach(img=> img.onclick = ()=>{ openLightbox(img.dataset.view); }); }
+	async function renderEntries(){ const t=state.trips[currentTripId()]; const tbody=$('#entriesTable tbody'); if(!t){ tbody.innerHTML=''; return; } const rows=await Promise.all(t.entries.map(async e=>{ const lure=[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '); const depths=[`W:${e.waterDepth||'-'}`,`T:${e.targetDepth||'-'}`,(e.platform==='Downrigger'?`B:${e.ballDepth||'-'}`:'')].filter(Boolean).join(' / '); const dirSpd=[e.trollDir, e.speedBall?`${e.speedBall} mph`:''].filter(Boolean).join(' • '); let photoCell=''; if(e.photo){ const durl=await getPhoto(e.id); photoCell = durl ? `<img src="${durl}" class="thumb" alt="thumb" data-view="${e.id}"/>` : '📷'; } else { photoCell=''; } const rowClass = e.isBite ? ' class="bite-row"' : ''; const timeCell = `${e.isBite ? '<span class="pill badge bite">🎯 Bite</span> ' : ''}${e.time||''}`; return `<tr${rowClass}><td>${timeCell}</td><td><span class="pill badge">${e.platform||''}</span></td><td>${photoCell}</td><td>${lure}</td><td>${depths}</td><td>${dirSpd}</td><td>${e.species||''}</td><td style="text-align:right;white-space:nowrap"><button class="btn secondary" data-edit="${e.id}">Edit</button> <button class="btn secondary" data-viewbtn="${e.id}">View</button> <button class="btn secondary" data-del="${e.id}">Delete</button></td></tr>`; })); tbody.innerHTML = rows.join(''); $$('button[data-del]').forEach(b=> b.onclick = ()=>{ delEntry(b.dataset.del); }); $$('button[data-viewbtn]').forEach(b=> b.onclick = ()=>{ openLightbox(b.dataset.viewbtn); }); $$('button[data-edit]').forEach(b=> b.onclick = ()=>{ startEdit(b.dataset.edit); }); $$('img[data-view]').forEach(img=> img.onclick = ()=>{ openLightbox(img.dataset.view); }); }
 	function loadEntryIntoForm(e, duplicate=false){ ['time','platform','trollDir','waterDepth','ballDepth','ballWeight','dipsySize','dipsySetting','copperLen','leadcoreColors','targetDepth','lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','speedBall','sog','strikeDepthSeen','species','lengthIn','weightLb','gps','notes'].forEach(id=>{ const el=$('#'+id); if(el && e[id]) el.value = e[id] ?? ''; }); if(e.platform) $('#platform').dispatchEvent(new Event('change')); if(!duplicate){ editingEntryId=e.id; setEditing(true); pendingPhotoDataURL=''; photoPreview.classList.add('hide'); photoPreview.src=''; } }
 	function startEdit(id){ const t=state.trips[currentTripId()]; if(!t) return; const e=t.entries.find(x=>x.id===id); if(!e) return; loadEntryIntoForm(e,false); toast('Editing entry'); }
 	async function delEntry(id){ const t=state.trips[currentTripId()]; if(!t) return; const e=t.entries.find(x=>x.id===id); if(!e) return; const photoData = e.photo ? await getPhoto(e.id) : null; t.entries = t.entries.filter(x=>x.id!==id); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); scheduleUndo({ entry:e, photo:photoData }); }
@@ -1055,11 +1062,14 @@
 		function applyQuickMode(){ const quick = state.settings.quickMode; // Update menu item too
 			const qm=document.getElementById('quickModeMenu'); if(qm) qm.textContent = 'Quick Mode: '+(quick?'On':'Off');
 			const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth']);
-			$$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } }); }
+			$$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } });
+			// Hide rigger calc <details> in Quick Mode
+			try{ const rc = document.getElementById('riggerCalc'); if(rc){ rc.style.display = quick ? 'none' : ''; } }catch(_){ }
+		}
 		function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0);} }
 		function hideToast(){ const el=$('#toast'); el.style.display='none'; }
 		function showUndo(){ toast('Entry deleted', true); }
-		function init(){ ensureListsSeeded(); fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); // load marine JSON URL into the settings input
+		function init(){ ensureListsSeeded(); fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); // load marine JSON URL into the settings input
 		try{ const el = $('#marineJsonUrl'); if(el) el.value = (state.settings && state.settings.marineJsonUrl) || ''; }catch(e){}
 	try{ const st = $('#stationJsonTemplate'); if(st) st.value = (state.settings && state.settings.stationJsonTemplate) || 'https://blfl-ndbc-proxy.elliottdanielp.workers.dev/stations/{station}.json'; }catch(e){}
 		// load sheet prefs
@@ -1158,7 +1168,7 @@
 		Array.from(menu.querySelectorAll('[data-bite]')).forEach(el=> el.addEventListener('click', ()=>{ const plat = el.getAttribute('data-bite'); hide(); addBite(plat||''); }));
 	})();
 
-	async function addBite(platform){ const id = ensureTrip(); const t = state.trips[id]; const header = t.header || {}; const now = new Date(); const timeStr = now.toTimeString().slice(0,5); const entry={ id: uid(), time: timeStr, platform: platform, trollDir: readVal('#trollDir')||'', waterDepth: num(readVal('#waterDepth')), targetDepth: num(readVal('#targetDepth')), lureType: readVal('#lureType')||'', lureBrand: readVal('#lureBrand')||'', lureSize: readVal('#lureSize')||'', lureColor: readVal('#lureColor')||'', attractor: readVal('#attractor')||'', flyMeat: readVal('#flyMeat')||'', speedBall: num(readVal('#speedBall')), sog: num(readVal('#sog')), species: readVal('#species')||'', notes: (readVal('#notes')? (readVal('#notes')+' • ') : '') + 'Bite', ts: computeTs(header, timeStr), photo: false };
+	async function addBite(platform){ const id = ensureTrip(); const t = state.trips[id]; const header = t.header || {}; const now = new Date(); const timeStr = now.toTimeString().slice(0,5); const entry={ id: uid(), time: timeStr, platform: platform, trollDir: readVal('#trollDir')||'', waterDepth: num(readVal('#waterDepth')), targetDepth: num(readVal('#targetDepth')), lureType: readVal('#lureType')||'', lureBrand: readVal('#lureBrand')||'', lureSize: readVal('#lureSize')||'', lureColor: readVal('#lureColor')||'', attractor: readVal('#attractor')||'', flyMeat: readVal('#flyMeat')||'', speedBall: num(readVal('#speedBall')), sog: num(readVal('#sog')), species: readVal('#species')||'', notes: (readVal('#notes')? (readVal('#notes')+' • ') : '') + 'Bite', ts: computeTs(header, timeStr), photo: false, isBite:true };
 		t.entries.push(entry); t.updatedAt=Date.now(); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); toast('Bite logged'); setTimeout(hideToast, 1200); }
 	// Manage Data actions — Clear current, Clear ALL, Delete trip
 	attach('#clearTrip','click', async ()=>{
