@@ -876,7 +876,10 @@
 		toast('Trip ended • exported locally' + (pushed? ' • pushed to Sheet' : ''));
 		setTimeout(hideToast, 2200);
 	}
-	attach('#endTrip','click', ()=>{ endTripFlow(); });
+	attach('#endTrip','click', ()=>{
+		const ok = confirm('End current trip, export locally, and start a new blank trip?\n\nTip: Ensure important notes are saved.');
+		if(ok) endTripFlow();
+	});
 
 	async function resetToFreshTrip(){
 		const id = currentTripId(); if(!id) { ensureTrip(); return; }
