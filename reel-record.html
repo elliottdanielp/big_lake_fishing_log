@@ -302,6 +302,14 @@
 				<div class="section-title">Analytics</div>
 				<div id="analytics" class="muted">(Data appears after entries.)</div>
 			</div>
+			<div class="card" id="thermoCard" style="display:none">
+				<div class="section-title">Thermocline & Plan (beta)</div>
+				<div class="row" style="align-items:center; gap:10px">
+					<button id="genThermoPlan" class="btn secondary" type="button">Generate plan</button>
+					<div id="thermoStatus" class="muted"></div>
+				</div>
+				<div id="thermoResult" class="muted" style="margin-top:10px">Enable in Settings to use this.</div>
+			</div>
 			<div class="card">
 				<div class="section-title">Export / backup</div>
 				<div class="grid cols-1">
@@ -351,6 +359,7 @@
 				<div class="prefs-row">
 					<label class="switch"><input type="checkbox" id="prefQuickDefault"/> Quick mode by default</label>
 					<label class="switch"><input type="checkbox" id="prefSticky" checked/> Sticky lure fields</label>
+					<label class="switch"><input type="checkbox" id="prefThermoBeta"/> Enable Thermocline Plan (beta)</label>
 				</div>
 				<div style="margin-top:12px">
 					<label for="marineJsonUrl">Optional: Marine data JSON URL (public)</label>
@@ -1056,6 +1065,103 @@
 		}
 	}
 	attach('#pushFullTrip','click', ()=>{ pushFullTrip(); });
+
+	// Thermocline & Plan (beta) — lightweight implementation
+	attach('#genThermoPlan','click', async ()=>{
+		if(!(state.settings && state.settings.thermoBeta)) { toast('Enable beta in Settings'); return; }
+		const statusEl = document.getElementById('thermoStatus'); const outEl = document.getElementById('thermoResult');
+		if(statusEl) statusEl.textContent = 'Gathering sources...'; if(outEl) outEl.textContent = '';
+		try{
+			const t = state.trips[currentTripId()]; if(!t) { if(statusEl) statusEl.textContent='No trip'; return; }
+			const hdr = t.header || {}; const lat = parseFloat(hdr.lastLat||''); const lon = parseFloat(hdr.lastLon||'');
+			if(!isFinite(lat) || !isFinite(lon)) { if(statusEl) statusEl.textContent='No GPS cached. Tap Catch Conditions (GPS) first.'; return; }
+			const stations = (window.__stations||[]).slice();
+			// simple corridor: within 30 km and +/- 10 km cross-track box (approx by distance only here)
+			const near = stations.map(s=>({ s, d: haversineKm(lat,lon, s.lat, s.lon) }))
+				.filter(x=> x.d <= 30)
+				.sort((a,b)=> a.d - b.d)
+				.slice(0, 12)
+				.map(x=> x.s);
+			if(statusEl) statusEl.textContent = `Found ${near.length} sources...`;
+			// fetch profiles best-effort via stationJsonTemplate if present
+			const tpl = (state.settings && state.settings.stationJsonTemplate) ? String(state.settings.stationJsonTemplate).trim() : '';
+			const profiles = [];
+			for(const s of near){
+				let prof = null;
+				if(tpl){
+					const url = tpl.replace('{station}', encodeURIComponent(s.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+					const u2 = url + (url.includes('?')?'&':'?') + 'prefer=ocean-spec';
+					try{ const r = await fetch(u2, { cache:'no-store' }); if(r.ok){ const js = await r.json(); prof = normalizeProfile(js, s, lat, lon); } }catch(_){ }
+				}
+				if(prof) profiles.push(prof);
+			}
+			if(!profiles.length){ if(statusEl) statusEl.textContent = 'No profile data; estimating from surface and history...';
+				// estimate band using surface temp and recent entries
+				const surfF = parseFloat(hdr.surfaceTemp||'');
+				const est = estimateFromHistory(t, isFinite(surfF)? (surfF-32)*5/9 : null);
+				renderPlan(est, outEl, statusEl);
+				return;
+			}
+			if(statusEl) statusEl.textContent = 'Compositing...';
+			const comp = compositeProfiles(profiles);
+			renderPlan(comp, outEl, statusEl);
+		}catch(e){ console.warn('thermo plan error', e); if(statusEl) statusEl.textContent = 'Failed to generate plan'; }
+	});
+
+	function haversineKm(aLat,aLon,bLat,bLon){ const toR=n=>n*Math.PI/180; const dLat=toR(bLat-aLat), dLon=toR(bLon-aLon); const la=toR(aLat), lb=toR(bLat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*6371*Math.asin(Math.sqrt(h)); }
+	function normalizeProfile(js, station, userLat, userLon){
+		const now = Date.now(); const ageH = 0; // unknown; treat as fresh for now
+		// Accept tiny shape: { profile:[{z_m,t_c}], sstC }
+		let profile = [];
+		if(js && Array.isArray(js.profile)) profile = js.profile.map(p=>({ z_m: Number(p.z_m), t_c: Number(p.t_c) })).filter(p=> isFinite(p.z_m) && isFinite(p.t_c));
+		// fallback: no profile
+		if(!profile.length) return null;
+		const quality = 0.8; // placeholder quality for station
+		return { id: station.id, lat:station.lat, lon:station.lon, ts: now, age_h: ageH, quality, profile };
+	}
+	function compositeProfiles(profiles){
+		// depth grid 0..60m
+		const zMax=60, dz=1; const grid = Array.from({length:zMax+1},(_,i)=>i);
+		function interpAt(arr, z){ // linear interp in profile arrays sorted by z_m
+			const a = arr;
+			if(!a.length) return null; if(z<=a[0].z_m) return a[0].t_c; if(z>=a[a.length-1].z_m) return a[a.length-1].t_c;
+			for(let i=1;i<a.length;i++){ if(z<=a[i].z_m){ const z0=a[i-1].z_m, z1=a[i].z_m; const t0=a[i-1].t_c, t1=a[i].t_c; const r=(z-z0)/(z1-z0); return t0 + r*(t1-t0); } }
+			return null;
+		}
+		// simple equal weighting for now (sensors only)
+		const T = grid.map(z=>{
+			let sum=0, w=0; for(const p of profiles){ const t=interpAt(p.profile, z); if(t!==null){ sum+=t; w+=1; } }
+			return w? (sum/w) : null;
+		});
+		// gradient
+		const dTdz = grid.map((z,i)=> i>0 && T[i]!==null && T[i-1]!==null ? (T[i]-T[i-1])/(dz) : 0);
+		// thermocline at most negative gradient (cooling with depth)
+		let bestZ=0, bestG=0; for(let i=1;i<dTdz.length;i++){ if(dTdz[i]<bestG){ bestG=dTdz[i]; bestZ=i; } }
+		// isotherms
+		function findIso(tempC){ for(let i=1;i<T.length;i++){ if(T[i]===null||T[i-1]===null) continue; const t0=T[i-1], t1=T[i]; if((t0-tempC)*(t1-tempC)<=0){ const r = (tempC - t0)/((t1 - t0)||1); return (i-1)+r; } } return null; }
+		const t10 = findIso(10), t12 = findIso(12);
+		return { cline_m: bestZ, iso10_m: t10, iso12_m: t12, sources: profiles.length };
+	}
+	function estimateFromHistory(trip, sstC){
+		// Use last 6 catches to infer band; fallback from waterDepth/targetDepth
+		const recent = (trip.entries||[]).slice(-6);
+		const depths = recent.map(e=> e.targetDepth || e.waterDepth).filter(n=> Number.isFinite(n));
+		const avg = depths.length? depths.reduce((a,b)=>a+b,0)/depths.length : null;
+		const estCline = avg? Math.max(10, Math.min(120, avg)) : 60;
+		return { cline_m: estCline*0.3048, iso10_m: (estCline-15)*0.3048, iso12_m: (estCline-5)*0.3048, sources: 0 };
+	}
+	function renderPlan(comp, outEl, statusEl){
+		const ft = m=> (m==null? '—' : Math.round(m*3.28084));
+		const cl = ft(comp.cline_m), i10 = ft(comp.iso10_m), i12 = ft(comp.iso12_m);
+		const rigs = [
+			{ type:'Rigger', depth: i12? i12 : (cl? cl : 60), note:'Flasher/fly or meat' },
+			{ type:'Rigger', depth: i10? i10 : (cl? cl-10 : 50), note:'Spoon high of cline' },
+			{ type:'Dipsy', depth: cl? Math.max(30, cl-5) : 45, note:'8" paddle + fly' }
+		];
+		const html = `<div class="chip">Thermocline: <b>${cl||'—'} ft</b> • 10°C: <b>${i10||'—'} ft</b> • 12°C: <b>${i12||'—'} ft</b> • Sources: <b>${comp.sources}</b></div>` +
+			'<div class="grid cols-3" style="margin-top:10px">' + rigs.map(r=> `<div class="chip">${r.type}: <b>${r.depth} ft</b> — ${r.note}</div>`).join('') + '</div>';
+		if(outEl) outEl.innerHTML = html; if(statusEl) statusEl.textContent = 'Plan generated';
+	}
     
 	// Google Sheets / Drive upload helpers removed (app is local-only per user request)
 		function download(name, content){ const blob=new Blob([content], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
@@ -1065,8 +1171,8 @@
 			// Add ts to entries if missing
 	Object.values(state.trips||{}).forEach(trip=>{ (trip.entries||[]).forEach(e=>{ if(!e.ts){ const ts=computeTs(trip.header, e.time); e.ts=ts; } }); });
 	save(); indicateSaved(); }
-	function initPrefs(){ $('#prefQuickDefault').checked = !!(state.settings && state.settings.quickMode); $('#prefSticky').checked = ((state.settings && state.settings.sticky) !== false); }
-	function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; const st = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : ''; state.settings.stationJsonTemplate = st; save(); indicateSaved(); toast('Preferences saved'); applyQuickMode(); }
+	function initPrefs(){ $('#prefQuickDefault').checked = !!(state.settings && state.settings.quickMode); $('#prefSticky').checked = ((state.settings && state.settings.sticky) !== false); $('#prefThermoBeta').checked = !!(state.settings && state.settings.thermoBeta); }
+	function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; state.settings.thermoBeta = $('#prefThermoBeta').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; const st = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : ''; state.settings.stationJsonTemplate = st; save(); indicateSaved(); toast('Preferences saved'); applyQuickMode(); applyThermoVisibility(); }
 	// persist sheet web app settings when saving prefs
 	function loadSheetPrefsIntoForm(){ try{ const el = $('#sheetWebAppUrl'); if(el) el.value = (state.settings && state.settings.sheetWebAppUrl) || ''; }catch(e){} try{ const s = $('#sheetSecret'); if(s) s.value = (state.settings && state.settings.sheetSecret) || ''; }catch(e){} }
 	// update savePrefs to persist new fields
@@ -1074,6 +1180,7 @@
 	savePrefs = function(){ _oldSavePrefs(); state.settings.sheetWebAppUrl = ($('#sheetWebAppUrl') && $('#sheetWebAppUrl').value) ? $('#sheetWebAppUrl').value.trim() : ''; state.settings.sheetSecret = ($('#sheetSecret') && $('#sheetSecret').value) ? $('#sheetSecret').value.trim() : ''; save(); indicateSaved(); toast('Preferences saved'); };
 	// reattach handler so the button invokes the updated savePrefs wrapper
 	attach('#savePrefs','click', savePrefs);
+	function applyThermoVisibility(){ const card = document.getElementById('thermoCard'); if(card) card.style.display = (state.settings && state.settings.thermoBeta) ? '' : 'none'; const res = document.getElementById('thermoResult'); if(res && !(state.settings && state.settings.thermoBeta)) res.textContent = 'Enable in Settings to use this.'; }
 		function applyQuickMode(){ const quick = state.settings.quickMode; // Update menu item too
 			const qm=document.getElementById('quickModeMenu'); if(qm) qm.textContent = 'Quick Mode: '+(quick?'On':'Off');
 			const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth']);
@@ -1093,9 +1200,10 @@
 				try{
 					fetch('stations.json', { cache: 'no-store' }).then(r=>r.json()).then(js=>{ window.__stations = js || [] }).catch(()=>{ window.__stations = []; });
 				}catch(e){ window.__stations = []; }
-			loadHeaderIntoForm(); applyQuickMode(); updateLogBadge(); }
+			loadHeaderIntoForm(); applyQuickMode(); applyThermoVisibility(); updateLogBadge(); }
 	attach('#prefSticky','change', ()=>{ /* immediate reflection not needed */ });
 	attach('#prefQuickDefault','change', ()=>{ /* just state toggle on save */ });
+	attach('#prefThermoBeta','change', ()=>{ /* just reflect on save */ });
 		attach('#quickToggle','dblclick', ()=>{ // quick clear validation marks
 			$$('#tab-log .invalid').forEach(el=>el.classList.remove('invalid')); });
 		init();
