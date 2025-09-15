@@ -160,6 +160,9 @@
 					<div class="section-title">Trip header</div>
 					<button class="btn xs" id="fetchConditions" type="button" title="Use GPS to auto-fill conditions">Catch Conditions (GPS)</button>
 				</div>
+				<div class="row" style="margin-top:8px">
+					<button id="genThermoPlan" class="btn secondary" type="button" style="display:none">Generate plan</button>
+				</div>
 				<div class="grid cols-1" style="margin-top:8px">
 					<label for="tripSelect">Current trip</label>
 					<select id="tripSelect"></select>
@@ -202,6 +205,14 @@
 			</div>
 		</section>
 		<section id="tab-log" class="grid hide">
+			<!-- Thermocline plan panel (shown after generation) -->
+			<div class="card" id="thermoPlanPanel" style="display:none">
+				<details open>
+					<summary><strong>Thermocline & Plan (beta)</strong></summary>
+					<div id="thermoStatus" class="muted"></div>
+					<div id="thermoResult" style="margin-top:10px"></div>
+				</details>
+			</div>
 			<div class="card">
 				<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
 					<div class="section-title">Log a catch / bite</div>
@@ -302,14 +313,7 @@
 				<div class="section-title">Analytics</div>
 				<div id="analytics" class="muted">(Data appears after entries.)</div>
 			</div>
-			<div class="card" id="thermoCard" style="display:none">
-				<div class="section-title">Thermocline & Plan (beta)</div>
-				<div class="row" style="align-items:center; gap:10px">
-					<button id="genThermoPlan" class="btn secondary" type="button">Generate plan</button>
-					<div id="thermoStatus" class="muted"></div>
-				</div>
-				<div id="thermoResult" class="muted" style="margin-top:10px">Enable in Settings to use this.</div>
-			</div>
+			<!-- Thermocline card moved to Setup/Log per request -->
 			<div class="card">
 				<div class="section-title">Export / backup</div>
 				<div class="grid cols-1">
@@ -1069,8 +1073,12 @@
 	// Thermocline & Plan (beta) — lightweight implementation
 	attach('#genThermoPlan','click', async ()=>{
 		if(!(state.settings && state.settings.thermoBeta)) { toast('Enable beta in Settings'); return; }
+		// ensure panel visible and navigate to Catch Log tab for context
+		const panel = document.getElementById('thermoPlanPanel'); if(panel) panel.style.display = '';
 		const statusEl = document.getElementById('thermoStatus'); const outEl = document.getElementById('thermoResult');
 		if(statusEl) statusEl.textContent = 'Gathering sources...'; if(outEl) outEl.textContent = '';
+		// switch to Catch Log so the panel is visible
+		try{ location.hash = '#tab-log'; }catch(_){}
 		try{
 			const t = state.trips[currentTripId()]; if(!t) { if(statusEl) statusEl.textContent='No trip'; return; }
 			const hdr = t.header || {}; const lat = parseFloat(hdr.lastLat||''); const lon = parseFloat(hdr.lastLon||'');
@@ -1107,7 +1115,7 @@
 			if(statusEl) statusEl.textContent = 'Fusing corridor...';
 			const comp = fuseThermo(stationResults, {lat, lon});
 			renderPlan(comp, outEl, statusEl);
-		}catch(e){ console.warn('thermo plan error', e); if(statusEl) statusEl.textContent = 'Failed to generate plan'; }
+	}catch(e){ console.warn('thermo plan error', e); if(statusEl) statusEl.textContent = 'Failed to generate plan'; }
 	});
 
 	function haversineKm(aLat,aLon,bLat,bLon){ const toR=n=>n*Math.PI/180; const dLat=toR(bLat-aLat), dLon=toR(bLon-aLon); const la=toR(aLat), lb=toR(bLat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*6371*Math.asin(Math.sqrt(h)); }
@@ -1161,14 +1169,22 @@
 	function renderPlan(comp, outEl, statusEl){
 		const ft = m=> (m==null? '—' : Math.round(m*3.28084));
 		const cl = ft(comp.cline_m), i52 = ft(comp.iso10_m), i55 = ft(comp.iso12_m);
+		// Friendly layout: headline chip + clear recommendations
+		const parts = [];
+		parts.push(`<div class="chip" style="display:block; border-radius:12px">Thermocline <b>${cl||'—'} ft</b> • 52°F <b>${i52||'—'} ft</b> • 55°F <b>${i55||'—'} ft</b> • Sources <b>${comp.sources||0}</b> • Conf <b>${Math.round((comp.conf||0)*100)}%</b></div>`);
+		parts.push('<div class="kv-group" style="margin-top:10px">');
+		parts.push('<div class="group-title">Recommended spread</div>');
+		parts.push('<div class="kv-list">');
 		const rigs = [
-			{ type:'Rigger', depth: i55? i55 : (cl? cl : 60), note:'Flasher/fly or meat' },
-			{ type:'Rigger', depth: i55? Math.max(10, i55-5) : (cl? Math.max(10, cl-10):50), note:'Spoon high of break' },
+			{ type:'Rigger (deep)', depth: i55? i55 : (cl? cl : 60), note:'Flasher/fly or meat' },
+			{ type:'Rigger (high spoon)', depth: i55? Math.max(10, i55-5) : (cl? Math.max(10, cl-10):50), note:'Spoon 5–10 ft above break' },
 			{ type:'Dipsy', depth: cl? Math.max(30, cl-5) : 45, note:'8" paddle + fly' }
 		];
-		const confPct = Math.round((comp.conf||0)*100);
-		const html = `<div class="chip">Thermocline: <b>${cl||'—'} ft</b> • 52°F: <b>${i52||'—'} ft</b> • 55°F: <b>${i55||'—'} ft</b> • Sources: <b>${comp.sources||0}</b> • Conf: <b>${confPct}%</b></div>` +
-			'<div class="grid cols-3" style="margin-top:10px">' + rigs.map(r=> `<div class="chip">${r.type}: <b>${r.depth} ft</b> — ${r.note}</div>`).join('') + '</div>';
+		rigs.forEach(r=>{
+			parts.push(`<div class="kv-item"><div class="kv-left"><div class="kv-label">${r.type}</div><div class="kv-notes">${r.note}</div></div><div class="kv-reco"><span class="pill depth">${r.depth} ft</span></div></div>`);
+		});
+		parts.push('</div></div>');
+		const html = parts.join('');
 		if(outEl) outEl.innerHTML = html; if(statusEl) statusEl.textContent = 'Plan generated';
 	}
     
@@ -1189,7 +1205,14 @@
 	savePrefs = function(){ _oldSavePrefs(); state.settings.sheetWebAppUrl = ($('#sheetWebAppUrl') && $('#sheetWebAppUrl').value) ? $('#sheetWebAppUrl').value.trim() : ''; state.settings.sheetSecret = ($('#sheetSecret') && $('#sheetSecret').value) ? $('#sheetSecret').value.trim() : ''; save(); indicateSaved(); toast('Preferences saved'); };
 	// reattach handler so the button invokes the updated savePrefs wrapper
 	attach('#savePrefs','click', savePrefs);
-	function applyThermoVisibility(){ const card = document.getElementById('thermoCard'); if(card) card.style.display = (state.settings && state.settings.thermoBeta) ? '' : 'none'; const res = document.getElementById('thermoResult'); if(res && !(state.settings && state.settings.thermoBeta)) res.textContent = 'Enable in Settings to use this.'; }
+	function applyThermoVisibility(){
+		const btn = document.getElementById('genThermoPlan');
+		const panel = document.getElementById('thermoPlanPanel');
+		const enabled = !!(state.settings && state.settings.thermoBeta);
+		if(btn) btn.style.display = enabled ? '' : 'none';
+		if(panel) panel.style.display = 'none'; // hidden by default; shown after generation
+		const res = document.getElementById('thermoResult'); if(res && !enabled) res.textContent = 'Enable in Settings to use this.';
+	}
 		function applyQuickMode(){ const quick = state.settings.quickMode; // Update menu item too
 			const qm=document.getElementById('quickModeMenu'); if(qm) qm.textContent = 'Quick Mode: '+(quick?'On':'Off');
 			const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth']);
