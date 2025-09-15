@@ -1102,46 +1102,54 @@
 				renderPlan(est, outEl, statusEl);
 				return;
 			}
-			if(statusEl) statusEl.textContent = 'Compositing...';
-			const comp = compositeProfiles(profiles);
+			if(statusEl) statusEl.textContent = 'Analyzing stations...';
+			const stationResults = profiles.map(p=> perStationThermo(p));
+			if(statusEl) statusEl.textContent = 'Fusing corridor...';
+			const comp = fuseThermo(stationResults, {lat, lon});
 			renderPlan(comp, outEl, statusEl);
 		}catch(e){ console.warn('thermo plan error', e); if(statusEl) statusEl.textContent = 'Failed to generate plan'; }
 	});
 
 	function haversineKm(aLat,aLon,bLat,bLon){ const toR=n=>n*Math.PI/180; const dLat=toR(bLat-aLat), dLon=toR(bLon-aLon); const la=toR(aLat), lb=toR(bLat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*6371*Math.asin(Math.sqrt(h)); }
 	function normalizeProfile(js, station, userLat, userLon){
-		const now = Date.now(); const ageH = 0; // unknown; treat as fresh for now
-		// Accept tiny shape: { profile:[{z_m,t_c}], sstC }
+		// Accept shapes: { profile:[{z_m,t_c}], when?, ts?, time? }
 		let profile = [];
-		if(js && Array.isArray(js.profile)) profile = js.profile.map(p=>({ z_m: Number(p.z_m), t_c: Number(p.t_c) })).filter(p=> isFinite(p.z_m) && isFinite(p.t_c));
-		// fallback: no profile
+		if(js && Array.isArray(js.profile)) profile = js.profile.map(p=>({ z_m: Number(p.z_m), t_c: Number(p.t_c) })).filter(p=> isFinite(p.z_m) && isFinite(p.t_c)).sort((a,b)=> a.z_m-b.z_m);
 		if(!profile.length) return null;
-		const quality = 0.8; // placeholder quality for station
-		return { id: station.id, lat:station.lat, lon:station.lon, ts: now, age_h: ageH, quality, profile };
+		const ts = (js && (js.when || js.ts || js.time)) ? Number(js.when || js.ts || js.time) : Date.now();
+		const ageH = Math.abs(Date.now() - ts)/3600000;
+		const isChain = profile.length >= 5; // heuristic
+		return { id: station.id, lat:station.lat, lon:station.lon, ts, age_h: ageH, isChain, profile };
 	}
-	function compositeProfiles(profiles){
-		// depth grid 0..60m
-		const zMax=60, dz=1; const grid = Array.from({length:zMax+1},(_,i)=>i);
-		function interpAt(arr, z){ // linear interp in profile arrays sorted by z_m
-			const a = arr;
-			if(!a.length) return null; if(z<=a[0].z_m) return a[0].t_c; if(z>=a[a.length-1].z_m) return a[a.length-1].t_c;
-			for(let i=1;i<a.length;i++){ if(z<=a[i].z_m){ const z0=a[i-1].z_m, z1=a[i].z_m; const t0=a[i-1].t_c, t1=a[i].t_c; const r=(z-z0)/(z1-z0); return t0 + r*(t1-t0); } }
-			return null;
-		}
-		// simple equal weighting for now (sensors only)
-		const T = grid.map(z=>{
-			let sum=0, w=0; for(const p of profiles){ const t=interpAt(p.profile, z); if(t!==null){ sum+=t; w+=1; } }
-			return w? (sum/w) : null;
-		});
-		// gradient
-		const dTdz = grid.map((z,i)=> i>0 && T[i]!==null && T[i-1]!==null ? (T[i]-T[i-1])/(dz) : 0);
-		// thermocline at most negative gradient (cooling with depth)
-		let bestZ=0, bestG=0; for(let i=1;i<dTdz.length;i++){ if(dTdz[i]<bestG){ bestG=dTdz[i]; bestZ=i; } }
-		// isotherms
-		function findIso(tempC){ for(let i=1;i<T.length;i++){ if(T[i]===null||T[i-1]===null) continue; const t0=T[i-1], t1=T[i]; if((t0-tempC)*(t1-tempC)<=0){ const r = (tempC - t0)/((t1 - t0)||1); return (i-1)+r; } } return null; }
-		const t10 = findIso(10), t12 = findIso(12);
-		return { cline_m: bestZ, iso10_m: t10, iso12_m: t12, sources: profiles.length };
+	function perStationThermo(p){
+		const sm = smoothProfile(p.profile, 3);
+		const grad = centralGradient(sm);
+		// find peak gradient in plausible band (3..40 m)
+		let peak = { z: NaN, g: -Infinity };
+		for(const g of grad){ if(g.z>=3 && g.z<=40 && g.g>peak.g) peak = g; }
+		const tc_conf = Math.max(0, Math.min(1, peak.g / 0.5)); // 0.5 °C/m ~ strong
+		const iso52 = zAtTemp(sm, 11.1);
+		const iso55 = zAtTemp(sm, 12.8);
+		return { stationId: p.id, lat:p.lat, lon:p.lon, when:p.ts, z_tc_m: peak.z, tc_conf, iso52_m: iso52, iso55_m: iso55, isChain: !!p.isChain };
 	}
+	function smoothProfile(profile, win){ if(!Array.isArray(profile)||!profile.length) return profile||[]; const out=[]; const k=Math.max(1, Math.floor(win)); for(let i=0;i<profile.length;i++){ let sum=0,c=0; for(let j=i-k;j<=i+k;j++){ if(j>=0&&j<profile.length){ sum+=profile[j].t_c; c++; } } out.push({ z: profile[i].z_m, t: sum/c }); } return out; }
+	function centralGradient(sm){ const g=[]; for(let i=1;i<sm.length-1;i++){ const dz = (sm[i+1].z - sm[i-1].z); const dT = (sm[i+1].t - sm[i-1].t); if(dz>0){ g.push({ z: sm[i].z, g: Math.abs(dT/dz) }); } } return g; }
+	function zAtTemp(sm, tc){ for(let i=1;i<sm.length;i++){ const z0=sm[i-1].z, z1=sm[i].z; const t0=sm[i-1].t, t1=sm[i].t; if((t0-tc)*(t1-tc)<=0){ const r = (tc - t0)/((t1 - t0)||1); return z0 + r*(z1 - z0); } } return null; }
+	function fuseThermo(st, ref){
+		const now = Date.now();
+		const rows = [];
+		for(const r of st){ if(!isFinite(r.z_tc_m)) continue; const dKm = haversineKm(ref.lat, ref.lon, r.lat, r.lon); const dtH = Math.abs(now - r.when)/3600000; let w = Math.exp(-dKm/30) * Math.exp(-dtH/6) * (r.isChain?1.15:1.0) * Math.max(0.1, Math.min(1, r.tc_conf||0.5)); rows.push({ w, z:r.z_tc_m, iso52:r.iso52_m, iso55:r.iso55_m }); }
+		if(!rows.length) return { cline_m: null, iso10_m: null, iso12_m: null, sources: 0, conf: 0 };
+		const zAvg = wMean(rows.map(x=>[x.z,x.w])); const zStd = wStd(rows.map(x=>[x.z,x.w]), zAvg);
+		const kept = rows.filter(x=>{ const out = Math.abs(x.z - zAvg) > 2.5*(zStd||1e-6); return !out || x.w>0.6; });
+		const Z = wMean(kept.map(x=>[x.z,x.w]));
+		const I52 = wMean(kept.filter(x=>isFinite(x.iso52)).map(x=>[x.iso52,x.w]));
+		const I55 = wMean(kept.filter(x=>isFinite(x.iso55)).map(x=>[x.iso55,x.w]));
+		const wSum = kept.reduce((s,x)=>s+x.w,0); const conf = Math.max(0, Math.min(1, wSum / (kept.length || 1)));
+		return { cline_m: Z, iso10_m: I52, iso12_m: I55, sources: kept.length, conf };
+	}
+	function wMean(pairs){ if(!pairs.length) return null; let sw=0, s=0; for(const [v,w] of pairs){ if(isFinite(v)&&isFinite(w)){ s+=v*w; sw+=w; } } return sw? s/sw : null; }
+	function wStd(pairs, mean){ if(!pairs.length||!isFinite(mean)) return 0; let sw=0, s=0; for(const [v,w] of pairs){ if(isFinite(v)&&isFinite(w)){ s+=w*Math.pow(v-mean,2); sw+=w; } } return sw? Math.sqrt(s/sw) : 0; }
 	function estimateFromHistory(trip, sstC){
 		// Use last 6 catches to infer band; fallback from waterDepth/targetDepth
 		const recent = (trip.entries||[]).slice(-6);
@@ -1152,13 +1160,14 @@
 	}
 	function renderPlan(comp, outEl, statusEl){
 		const ft = m=> (m==null? '—' : Math.round(m*3.28084));
-		const cl = ft(comp.cline_m), i10 = ft(comp.iso10_m), i12 = ft(comp.iso12_m);
+		const cl = ft(comp.cline_m), i52 = ft(comp.iso10_m), i55 = ft(comp.iso12_m);
 		const rigs = [
-			{ type:'Rigger', depth: i12? i12 : (cl? cl : 60), note:'Flasher/fly or meat' },
-			{ type:'Rigger', depth: i10? i10 : (cl? cl-10 : 50), note:'Spoon high of cline' },
+			{ type:'Rigger', depth: i55? i55 : (cl? cl : 60), note:'Flasher/fly or meat' },
+			{ type:'Rigger', depth: i55? Math.max(10, i55-5) : (cl? Math.max(10, cl-10):50), note:'Spoon high of break' },
 			{ type:'Dipsy', depth: cl? Math.max(30, cl-5) : 45, note:'8" paddle + fly' }
 		];
-		const html = `<div class="chip">Thermocline: <b>${cl||'—'} ft</b> • 10°C: <b>${i10||'—'} ft</b> • 12°C: <b>${i12||'—'} ft</b> • Sources: <b>${comp.sources}</b></div>` +
+		const confPct = Math.round((comp.conf||0)*100);
+		const html = `<div class="chip">Thermocline: <b>${cl||'—'} ft</b> • 52°F: <b>${i52||'—'} ft</b> • 55°F: <b>${i55||'—'} ft</b> • Sources: <b>${comp.sources||0}</b> • Conf: <b>${confPct}%</b></div>` +
 			'<div class="grid cols-3" style="margin-top:10px">' + rigs.map(r=> `<div class="chip">${r.type}: <b>${r.depth} ft</b> — ${r.note}</div>`).join('') + '</div>';
 		if(outEl) outEl.innerHTML = html; if(statusEl) statusEl.textContent = 'Plan generated';
 	}
