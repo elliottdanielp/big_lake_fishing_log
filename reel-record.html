@@ -207,9 +207,9 @@
 		<section id="tab-log" class="grid hide">
 			<!-- Thermocline plan panel (shown after generation) -->
 			<div class="card" id="thermoPlanPanel" style="display:none">
-				<details open>
+				<details open id="thermoDetails">
 					<summary><strong>Thermocline & Plan (beta)</strong></summary>
-					<div id="thermoStatus" class="muted"></div>
+					<div class="note" id="thermoStatus" style="margin-top:6px; font-size:14px"></div>
 					<div id="thermoResult" style="margin-top:10px"></div>
 				</details>
 			</div>
@@ -1169,23 +1169,22 @@
 	function renderPlan(comp, outEl, statusEl){
 		const ft = m=> (m==null? '—' : Math.round(m*3.28084));
 		const cl = ft(comp.cline_m), i52 = ft(comp.iso10_m), i55 = ft(comp.iso12_m);
-		// Friendly layout: headline chip + clear recommendations
-		const parts = [];
-		parts.push(`<div class="chip" style="display:block; border-radius:12px">Thermocline <b>${cl||'—'} ft</b> • 52°F <b>${i52||'—'} ft</b> • 55°F <b>${i55||'—'} ft</b> • Sources <b>${comp.sources||0}</b> • Conf <b>${Math.round((comp.conf||0)*100)}%</b></div>`);
-		parts.push('<div class="kv-group" style="margin-top:10px">');
-		parts.push('<div class="group-title">Recommended spread</div>');
-		parts.push('<div class="kv-list">');
+		const confPct = Math.round((comp.conf||0)*100);
 		const rigs = [
-			{ type:'Rigger (deep)', depth: i55? i55 : (cl? cl : 60), note:'Flasher/fly or meat' },
-			{ type:'Rigger (high spoon)', depth: i55? Math.max(10, i55-5) : (cl? Math.max(10, cl-10):50), note:'Spoon 5–10 ft above break' },
-			{ type:'Dipsy', depth: cl? Math.max(30, cl-5) : 45, note:'8" paddle + fly' }
+			{ label:'Deep rigger', depth: i55? i55 : (cl? cl : 60), note:'Flasher/fly or meat in green/UV' },
+			{ label:'High rigger', depth: i55? Math.max(10, i55-5) : (cl? Math.max(10, cl-10):50), note:'Mag or std spoon 5–10 ft above break' },
+			{ label:'Dipsy', depth: cl? Math.max(30, cl-5) : 45, note:'8" paddle + fly; adjust for hits' }
 		];
-		rigs.forEach(r=>{
-			parts.push(`<div class="kv-item"><div class="kv-left"><div class="kv-label">${r.type}</div><div class="kv-notes">${r.note}</div></div><div class="kv-reco"><span class="pill depth">${r.depth} ft</span></div></div>`);
-		});
-		parts.push('</div></div>');
-		const html = parts.join('');
-		if(outEl) outEl.innerHTML = html; if(statusEl) statusEl.textContent = 'Plan generated';
+		const html = `
+		  <div class="chip" style="display:block; border-radius:12px; line-height:1.4">Thermocline <b>${cl||'—'} ft</b> • 52°F <b>${i52||'—'} ft</b> • 55°F <b>${i55||'—'} ft</b><br/>Sources <b>${comp.sources||0}</b> • Confidence <b>${confPct}%</b></div>
+		  <div class="kv-group" style="margin-top:10px">
+			<div class="group-title">Recommended spread</div>
+			<ul style="margin:4px 0 0; padding-left:18px; list-style:disc">
+			  ${rigs.map(r=> `<li style=\"margin:6px 0\"><span class=\"pill depth\" style=\"margin-right:8px\">${r.depth} ft</span><strong>${r.label}</strong> – ${r.note}</li>`).join('')}
+			</ul>
+		  </div>`;
+		if(outEl) outEl.innerHTML = html.trim();
+		if(statusEl) statusEl.textContent = 'Plan generated';
 	}
     
 	// Google Sheets / Drive upload helpers removed (app is local-only per user request)
