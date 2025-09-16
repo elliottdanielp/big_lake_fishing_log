@@ -187,6 +187,14 @@
 					<div class="muted">Tip: Tap <b>Catch Conditions (GPS)</b> before you leave to save latest conditions. Last cached: <span id="conditionsCached">—</span></div>
 					<div class="muted">Nearest station: <span id="conditionsStation">—</span></div>
 					<div id="marineSource" class="muted">Source: —</div>
+					<div id="marineSnapshot" style="margin-top:8px">
+						<div class="section-title" style="font-size:18px; margin:6px 0 6px">Marine Snapshot</div>
+						<div id="marineSnapStatus" class="muted" style="font-size:14px">—</div>
+						<div id="marineSnapResult" style="margin-top:6px"></div>
+						<div class="row" style="margin-top:6px">
+							<button id="runMarineSnap" class="btn secondary sm" type="button">Update snapshot</button>
+						</div>
+					</div>
 				</div>
 				<div class="hint">Tip: You can edit dropdown options under <b>Settings → Lists</b>.</div>
 				<div id="saveStatus" class="pill badge" style="display:inline-block;margin-top:8px">Saved</div>
@@ -567,6 +575,9 @@
 										// wire undo button once shown
 										setTimeout(()=>{ const b = document.getElementById('undoMarineBtn'); if(b) b.addEventListener('click', ()=>{ if(pendingMarineUndo && pendingMarineUndo.id){ const id = pendingMarineUndo.id; state.trips[id].header = pendingMarineUndo.prevHeader || {}; save(); indicateSaved(); loadHeaderIntoForm(); const ms2 = document.getElementById('marineSource'); if(ms2) ms2.textContent = 'Source: —'; pendingMarineUndo = null; toast('Auto-fill undone'); setTimeout(hideToast, 1600); } }); }, 50);
 									}catch(e){ console.warn('failed to persist marine source', e); }
+
+									// trigger Marine Snapshot fusion right after successful marine fetch
+									try{ await runMarineSnapshot(lat, lon); }catch(_){ }
 								}
 							}catch(e){ console.warn('marine fetch error', e); }
 							save(); indicateSaved();
@@ -639,6 +650,22 @@
 		const m = document.getElementById('quickModeMenu'); if(m) m.textContent = 'Quick Mode: ' + (state.settings.quickMode ? 'On' : 'Off');
 		toast('Quick Mode ' + (state.settings.quickMode ? 'On' : 'Off'));
 		setTimeout(hideToast, 1200);
+	});
+	// Manual Marine Snapshot trigger
+	attach('#runMarineSnap','click', async ()=>{
+		try{
+			// prefer cached GPS from header; fall back to geolocation
+			const t = state.trips[currentTripId()]; const hdr = t && t.header || {};
+			let lat = parseFloat(hdr.lastLat||''); let lon = parseFloat(hdr.lastLon||'');
+			if(!isFinite(lat) || !isFinite(lon)){
+				if(!('geolocation' in navigator)) { toast('No GPS cached. Use Catch Conditions first.'); return; }
+				navigator.geolocation.getCurrentPosition(async pos=>{
+					await runMarineSnapshot(pos.coords.latitude, pos.coords.longitude);
+				}, err=>{ toast('Location failed: '+(err && err.message)); });
+				return;
+			}
+			await runMarineSnapshot(lat, lon);
+		}catch(e){ console.warn('runMarineSnap error', e); toast('Snapshot failed'); }
 	});
 
 			// Tab switching for top nav
@@ -840,6 +867,161 @@
 				if(js.hourly.significant_wave_height && js.hourly.significant_wave_height[bestIdx] !== undefined) wave = Number(js.hourly.significant_wave_height[bestIdx]);
 			}
 			return { sstC: sst, waveM: wave };
+		}
+
+		// Marine Snapshot: fuse SST and waves from up to 8 nearby buoys with weighting and fallbacks
+		async function runMarineSnapshot(lat, lon){
+			const statusEl = document.getElementById('marineSnapStatus');
+			const outEl = document.getElementById('marineSnapResult');
+			if(statusEl) statusEl.textContent = 'Scanning nearby buoys...';
+			if(outEl) outEl.innerHTML = '';
+			const t = state.trips[currentTripId()]; if(!t){ if(statusEl) statusEl.textContent='No trip'; return; }
+			const tpl = (state.settings && state.settings.stationJsonTemplate) ? String(state.settings.stationJsonTemplate).trim() : '';
+			const stations = (window.__stations||[]).slice();
+			if(!stations.length){ if(statusEl) statusEl.textContent = 'No station list available'; return; }
+			const sel1 = selectStations(lat, lon, stations, 40, 8);
+			let fused = null;
+			if(statusEl) statusEl.textContent = `Fetching ${sel1.length} stations...`;
+			if(tpl && sel1.length){
+				const rows = await fetchStationsData(tpl, sel1, lat, lon);
+				fused = fuseMarine(rows, {lat, lon});
+			}
+			// Retry with wider radius if nothing
+			if((!fused || fused.sources===0) && tpl){
+				if(statusEl) statusEl.textContent = 'Expanding search (60 km)...';
+				const sel2 = selectStations(lat, lon, stations, 60, 8);
+				const rows2 = await fetchStationsData(tpl, sel2, lat, lon);
+				fused = fuseMarine(rows2, {lat, lon});
+			}
+			// Fallbacks if still nothing
+			if(!fused || fused.sources===0){
+				if(statusEl) statusEl.textContent = 'Using Open‑Meteo marine (fallback)...';
+				try{
+					const m = await fetchOpenMeteoMarine(lat, lon);
+					if(m){ fused = { sstC: m.sstC ?? null, waveM: m.waveM ?? null, periodS: null, waveDirDeg: null, sources: 0, conf: 0.25, note: 'Open‑Meteo' }; }
+				}catch(_){ }
+			}
+			// Last resort: use last saved snapshot if present
+			if((!fused || (fused.sstC==null && fused.waveM==null))){
+				const cur = currentTripId(); const t2 = cur && state.trips[cur]; const snap = t2 && t2.header && t2.header.marineSnapshot;
+				if(snap){ fused = Object.assign({}, snap, { note: (snap.note? snap.note+'; ' : '') + 'last saved' }); }
+			}
+			if(!fused){ if(statusEl) statusEl.textContent = 'No marine data available'; return; }
+			// Persist to header and auto-fill fields
+			try{
+				const cur = currentTripId(); if(cur && state.trips[cur]){
+					state.trips[cur].header.marineSnapshot = Object.assign({}, fused, { at: Date.now() });
+					if(typeof fused.sstC === 'number'){ const f = Math.round((fused.sstC*9/5)+32); state.trips[cur].header.surfaceTemp = String(f); const sEl = document.getElementById('surfaceTemp'); if(sEl) sEl.value = f; }
+					if(typeof fused.waveM === 'number'){ const ft = (fused.waveM*3.28084).toFixed(1); state.trips[cur].header.waves = String(ft); const wEl = document.getElementById('waves'); if(wEl) wEl.value = ft; }
+					save(); indicateSaved();
+				}
+			}catch(_){ }
+			renderMarineSnapshot(fused, outEl, statusEl);
+		}
+
+		function selectStations(lat, lon, list, radiusKm, maxCount){
+			const arr = list.map(s=>({ s, d: haversineKm(lat, lon, s.lat, s.lon) }))
+				.filter(x=> x.d <= radiusKm)
+				.sort((a,b)=> a.d - b.d);
+			// ensure at least one more-offshore buoy included if available (heuristic: farthest within radius)
+			const chosen = arr.slice(0, Math.min(arr.length, maxCount)).map(x=> x.s);
+			if(arr.length > chosen.length){
+				const far = arr[arr.length-1].s;
+				const hasFar = chosen.some(s=> s.id === far.id);
+				if(!hasFar){
+					if(chosen.length < maxCount) chosen.push(far);
+					else chosen[chosen.length-1] = far; // swap last
+				}
+			}
+			return chosen;
+		}
+
+		async function fetchStationsData(tpl, stations, lat, lon){
+			const rows = [];
+			for(const s of stations){
+				try{
+					let url = tpl.replace('{station}', encodeURIComponent(s.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+					const sep = url.includes('?') ? '&' : '?';
+					url = `${url}${sep}prefer=ocean-spec&include=wave`;
+					const r = await fetch(url, { cache: 'no-store' });
+					if(!r.ok) continue;
+					const js = await r.json();
+					const sst = js && (js.sstC ?? js.surfaceTempC ?? js.sst);
+					const wave = js && (js.waveM ?? js.significant_wave_height ?? js.wave);
+					const period = js && (js.wavePeriodS ?? js.wave_period_s ?? js.mean_wave_period);
+					const dir = js && (js.waveDirDeg ?? js.wave_direction_deg ?? js.dominant_wave_direction);
+					const when = Number(js && (js.when || js.ts || js.time));
+					rows.push({ id: s.id, name: s.name || s.id, lat: s.lat, lon: s.lon, sstC: (sst==null?null:Number(sst)), waveM: (wave==null?null:Number(wave)), periodS: (period==null?null:Number(period)), waveDirDeg: (dir==null?null:Number(dir)), when: (isFinite(when)? when : Date.now()) });
+				}catch(_){ }
+			}
+			return rows;
+		}
+
+		function fuseMarine(rows, ref){
+			// Weight by distance and recency, reject outliers per metric
+			const now = Date.now();
+			const enriched = rows.map(r=>{
+				const dKm = haversineKm(ref.lat, ref.lon, r.lat, r.lon);
+				const dtH = Math.abs(now - r.when)/3600000;
+				const w = Math.exp(-dKm/30) * Math.exp(-dtH/6);
+				return Object.assign({ w, dKm, dtH }, r);
+			});
+			function pruneAndMean(arr, key){
+				const vals = arr.filter(x=> isFinite(x[key])).map(x=> [x[key], x.w]);
+				if(!vals.length) return { mean: null, kept: [] };
+				const mu = wMean(vals);
+				const sd = wStd(vals, mu);
+				const kept = enriched.filter(x=> isFinite(x[key]) && (Math.abs(x[key]-mu) <= 2.5*(sd||1e-6) || x.w>0.6));
+				return { mean: wMean(kept.map(x=> [x[key], x.w])), kept };
+			}
+			const sst = pruneAndMean(enriched, 'sstC');
+			const wav = pruneAndMean(enriched, 'waveM');
+			const per = pruneAndMean(enriched, 'periodS');
+			const dir = pruneAndMean(enriched, 'waveDirDeg');
+			const sources = Math.max(sst.kept.length, wav.kept.length, per.kept.length, dir.kept.length);
+			const conf = Math.max(0, Math.min(1, (sst.kept.reduce((s,x)=>s+x.w,0) + wav.kept.reduce((s,x)=>s+x.w,0)) / (sources || 1)));
+			// Build a union of stations used in either SST or Wave kept sets
+			const usedMap = new Map();
+			for(const x of [...sst.kept, ...wav.kept]){ usedMap.set(x.id, x); }
+			const sourcesDetail = Array.from(usedMap.values()).map(x=>({
+				id: x.id,
+				name: x.name || x.id,
+				dKm: x.dKm,
+				ageH: x.dtH,
+				sstC: x.sstC,
+				waveM: x.waveM,
+				periodS: x.periodS,
+				waveDirDeg: x.waveDirDeg,
+				w: x.w
+			})).sort((a,b)=> a.dKm - b.dKm);
+			return { sstC: sst.mean, waveM: wav.mean, periodS: per.mean, waveDirDeg: dir.mean, sources, conf, sourcesDetail };
+		}
+
+		function renderMarineSnapshot(data, outEl, statusEl){
+			const pills = [];
+			if(typeof data.sstC === 'number'){ const f = Math.round((data.sstC*9/5)+32); pills.push(`<span class="pill badge">SST ${f}°F</span>`); }
+			if(typeof data.waveM === 'number'){ const ft = (data.waveM*3.28084).toFixed(1); pills.push(`<span class="pill badge">Waves ${ft} ft</span>`); }
+			if(typeof data.periodS === 'number'){ pills.push(`<span class="pill badge">Period ${data.periodS.toFixed(0)} s</span>`); }
+			if(typeof data.waveDirDeg === 'number'){ const d = Math.round(data.waveDirDeg); pills.push(`<span class="pill badge">Dir ${d}°</span>`); }
+			const conf = Math.round(((data.conf||0)*100));
+			// Optional sources list
+			let sourcesHtml = '';
+			if(Array.isArray(data.sourcesDetail) && data.sourcesDetail.length){
+				const rows = data.sourcesDetail.map(s=>{
+					const f = typeof s.sstC==='number' ? Math.round((s.sstC*9/5)+32)+'°F' : '—';
+					const w = typeof s.waveM==='number' ? (s.waveM*3.28084).toFixed(1)+' ft' : '—';
+					const per = typeof s.periodS==='number' ? s.periodS.toFixed(0)+' s' : '—';
+					const dir = typeof s.waveDirDeg==='number' ? Math.round(s.waveDirDeg)+'°' : '—';
+					return `<li style=\"margin:6px 0\"><b>${s.name}</b> <span class=\"muted\">(${s.id})</span> — ${s.dKm.toFixed(1)} km • ${s.ageH.toFixed(1)} h • SST ${f}, Waves ${w}, Period ${per}, Dir ${dir}</li>`;
+				}).join('');
+				sourcesHtml = `<details style=\"margin-top:6px\"><summary><strong>Sources</strong></summary><ul style=\"padding-left:18px;margin:8px 0 0\">${rows}</ul></details>`;
+			}
+			const html = `
+				<div class=\"grid cols-3\">${pills.map(p=> `<div class=\"chip\">${p}</div>`).join('')}</div>
+				<div class=\"muted\" style=\"margin-top:6px\">Sources <b>${data.sources||0}</b> • Confidence <b>${conf}%</b>${data.note? ' • '+data.note: ''}</div>
+				${sourcesHtml}`;
+			if(outEl) outEl.innerHTML = html;
+			if(statusEl) statusEl.textContent = 'Snapshot updated';
 		}
 	const LS_KEY = 'blfl.state.v2';
 	let state = load() || { trips: {}, lists: defaults(), dataVersion:3, settings:{quickMode:false, sticky:true} };
@@ -1237,7 +1419,19 @@
 				try{
 					fetch('stations.json', { cache: 'no-store' }).then(r=>r.json()).then(js=>{ window.__stations = js || [] }).catch(()=>{ window.__stations = []; });
 				}catch(e){ window.__stations = []; }
-			loadHeaderIntoForm(); applyQuickMode(); applyThermoVisibility(); updateLogBadge(); }
+			loadHeaderIntoForm(); applyQuickMode(); applyThermoVisibility(); updateLogBadge();
+			// hydrate Marine Snapshot UI from header if present
+			try{
+				const t = state.trips[currentTripId()]; const hdr = t && t.header || {};
+				if(hdr && hdr.marineSnapshot){ renderMarineSnapshot(hdr.marineSnapshot, document.getElementById('marineSnapResult'), document.getElementById('marineSnapStatus')); }
+				// auto-run snapshot if we have cached GPS and no snapshot yet
+				const lat = parseFloat(hdr.lastLat||''); const lon = parseFloat(hdr.lastLon||'');
+				if(isTripActive() && isFinite(lat) && isFinite(lon) && !(hdr && hdr.marineSnapshot)){
+					// best-effort, don't block init
+					runMarineSnapshot(lat, lon).catch(()=>{});
+				}
+			}catch(_){ }
+		}
 	attach('#prefSticky','change', ()=>{ /* immediate reflection not needed */ });
 	attach('#prefQuickDefault','change', ()=>{ /* just state toggle on save */ });
 	attach('#prefThermoBeta','change', ()=>{ /* just reflect on save */ });
