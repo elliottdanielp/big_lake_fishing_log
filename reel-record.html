@@ -122,6 +122,10 @@
 	/* Rigger calc highlight when open */
 	#riggerCalc { border:1.5px dashed #2f3f57; border-radius:12px; padding:8px; }
 	#riggerCalc[open] { outline:2px solid var(--accent-2); box-shadow:0 0 0 3px rgba(46,208,162,.15) inset; }
+	/* Trip setup gating until first conditions fetch */
+	#tab-setup.pending-conditions .needs-conditions { display:none !important; }
+	#tab-setup.pending-conditions .await-conditions { display:block !important; }
+	.await-conditions { display:none; font-size:14px; margin-top:8px; color:var(--muted); }
 	</style>
 </head>
 <body>
@@ -160,14 +164,15 @@
 					<div class="section-title">Trip header</div>
 					<button class="btn xs" id="fetchConditions" type="button" title="Use GPS to auto-fill conditions">Catch Conditions (GPS)</button>
 				</div>
-				<div class="row" style="margin-top:8px">
-					<button id="genThermoPlan" class="btn secondary" type="button" style="display:none">Generate plan</button>
+				<div class="row needs-conditions" style="margin-top:8px">
+					<button id="genThermoPlan" class="btn secondary" type="button">Generate plan</button>
 				</div>
-				<div class="grid cols-1" style="margin-top:8px">
+				<div class="await-conditions">Tap <b>Catch Conditions (GPS)</b> to unlock trip fields.</div>
+				<div class="grid cols-1 needs-conditions" style="margin-top:8px">
 					<label for="tripSelect">Current trip</label>
 					<select id="tripSelect"></select>
 				</div>
-				<div class="grid cols-2">
+				<div class="grid cols-2 needs-conditions">
 					<div><label for="tripDate">Date</label><input id="tripDate" type="date" /></div>
 					<div><label for="startTime">Start time</label><input id="startTime" type="time" /></div>
 					<div><label for="port">Port / Area</label><input id="port" placeholder="e.g., St. Joseph, 80-160 FOW" /></div>
@@ -175,7 +180,7 @@
 					<div><label for="crew">Crew</label><input id="crew" placeholder="Who’s aboard" /></div>
 					<div><label for="hours">Planned hours</label><input id="hours" type="number" inputmode="decimal" placeholder="e.g., 5" /></div>
 				</div>
-				<div class="grid cols-3">
+				<div class="grid cols-3 needs-conditions">
 					<div><label for="airTemp">Air temp (°F)</label><input id="airTemp" type="number" inputmode="decimal" /></div>
 					<div><label for="surfaceTemp">Surface temp (°F)</label><input id="surfaceTemp" type="number" inputmode="decimal" /></div>
 					<div><label for="wind">Wind (dir/speed)</label><input id="wind" placeholder="e.g., WNW 10" /></div>
@@ -187,11 +192,12 @@
 					<div class="muted">Tip: Tap <b>Catch Conditions (GPS)</b> before you leave to save latest conditions. Last cached: <span id="conditionsCached">—</span></div>
 					<div class="muted">Nearest station: <span id="conditionsStation">—</span></div>
 					<div id="marineSource" class="muted">Source: —</div>
+					<div id="tripSlug" class="muted needs-conditions">Trip slug: —</div>
 					<div id="marineSnapshot" style="margin-top:8px">
 						<div class="section-title" style="font-size:18px; margin:6px 0 6px">Marine Snapshot</div>
 						<div id="marineSnapStatus" class="muted" style="font-size:14px">—</div>
 						<div id="marineSnapResult" style="margin-top:6px"></div>
-						<div class="row" style="margin-top:6px">
+						<div class="row needs-conditions" style="margin-top:6px">
 							<button id="runMarineSnap" class="btn secondary sm" type="button">Update snapshot</button>
 						</div>
 					</div>
@@ -199,12 +205,12 @@
 				<div class="hint">Tip: You can edit dropdown options under <b>Settings → Lists</b>.</div>
 				<div id="saveStatus" class="pill badge" style="display:inline-block;margin-top:8px">Saved</div>
 			</div>
-			<div class="card">
+			<div class="card needs-conditions" id="gearCard">
 				<div class="section-title">Gear</div>
 				<label for="gearNotes">Notes on gear (rods, reels, boards, rigs)</label>
 				<textarea id="gearNotes" placeholder="e.g., 2 Cannon downriggers, 300/250 copper on Ninja 9.5 boards, dipsy setups..."></textarea>
 			</div>
-			<div class="card">
+			<div class="card needs-conditions" id="saveCard">
 				<div class="section-title">Save / load trip</div>
 				<div class="grid cols-2">
 					<button class="btn good" id="saveTrip">Start Trip</button>
@@ -216,7 +222,7 @@
 			<!-- Thermocline plan panel (shown after generation) -->
 			<div class="card" id="thermoPlanPanel" style="display:none">
 				<details open id="thermoDetails">
-					<summary><strong>Thermocline & Plan (beta)</strong></summary>
+					<summary><strong>Thermocline & Plan</strong></summary>
 					<div class="note" id="thermoStatus" style="margin-top:6px; font-size:14px"></div>
 					<div id="thermoResult" style="margin-top:10px"></div>
 				</details>
@@ -397,10 +403,9 @@
 			<div class="card">
 				<div class="section-title">Preferences</div>
 				<div class="prefs-row">
-					<label class="switch"><input type="checkbox" id="prefQuickDefault"/> Quick mode by default</label>
-					<label class="switch"><input type="checkbox" id="prefSticky" checked/> Sticky lure fields</label>
-					<label class="switch"><input type="checkbox" id="prefThermoBeta"/> Enable Thermocline Plan (beta)</label>
-				</div>
+						<label class="switch"><input type="checkbox" id="prefQuickDefault"/> Quick mode by default</label>
+						<label class="switch"><input type="checkbox" id="prefSticky" checked/> Sticky lure fields</label>
+					</div>
 				<div style="margin-top:12px">
 					<label for="marineJsonUrl">Optional: Marine data JSON URL (public)</label>
 					<input id="marineJsonUrl" placeholder="https://example.com/marine.json" />
@@ -606,6 +611,15 @@
 
 									// trigger Marine Snapshot fusion right after successful marine fetch
 									try{ await runMarineSnapshot(lat, lon); }catch(_){ }
+									// On first successful conditions fetch of a gated setup: remove gating & generate slug
+									try{
+										const setupSec = document.getElementById('tab-setup');
+										if(setupSec && setupSec.classList.contains('pending-conditions')){
+											setupSec.classList.remove('pending-conditions');
+											generateTripSlug();
+										}
+										updateTripSlugDisplay();
+									}catch(_){ }
 								}
 							}catch(e){ console.warn('marine fetch error', e); }
 							save(); indicateSaved();
@@ -1074,7 +1088,7 @@
 		function currentTripId(){ return $('#tripSelect').value || null; }
 	function ensureTrip(){ let id=currentTripId(); if(!id){ id=uid(); state.trips[id]={id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()}; $('#tripSelect').value=id; save(); indicateSaved(); refreshTripSelect(); } return id; }
 	function refreshTripSelect(){ const sel=$('#tripSelect'); const opts=Object.values(state.trips).sort((a,b)=>{ const ad=(b.header && b.header.date) || ''; const bd=(a.header && a.header.date) || ''; return ad.localeCompare(bd); }); sel.innerHTML = opts.map(t=>`<option value="${t.id}">${(t.header && t.header.date)||'(no date)'} • ${ (t.header && t.header.port) || 'Port'}</option>`).join(''); }
-	function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value, gearNotes:$('#gearNotes')?$('#gearNotes').value:'' }; state.trips[id].updatedAt=Date.now(); state.trips[id].active = true; save(); refreshTripSelect(); $('#tripSelect').value=id; toast('Trip started'); setTimeout(hideToast, 1200); location.hash = '#tab-log'; try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } setTimeout(()=>{ try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } }, 50); applyActiveTripGating(); }
+	function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value, gearNotes:$('#gearNotes')?$('#gearNotes').value:'' }; state.trips[id].updatedAt=Date.now(); state.trips[id].active = true; save(); refreshTripSelect(); $('#tripSelect').value=id; toast('Trip started'); setTimeout(hideToast, 1200); location.hash = '#tab-log'; try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } setTimeout(()=>{ try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } }, 50); applyActiveTripGating(); setTimeout(()=>{ try{ document.getElementById('genThermoPlan')?.click(); }catch(_){ } }, 500); }
 
 	// Determine active via explicit flag set on Start Trip and cleared on End/New
 	function isTripActive(){ const t=state.trips[currentTripId()]; return !!(t && t.active === true); }
@@ -1151,9 +1165,9 @@
 					['lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','lineType','lineStrength'].forEach(id=>{/*sticky implies leave value*/});
 				} else { /* will clear below */ }
 			}
-	t.updatedAt=Date.now(); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); if(editingEntryId){ setEditing(false); clearCatchForm(false); } else { clearCatchForm(!state.settings.sticky); }
+	t.updatedAt=Date.now(); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); clearCatchForm(true); setEditing(false);
 		}
-	function clearCatchForm(clearSticky){ $$('#tab-log input, #tab-log textarea, #tab-log select').forEach(el=>{ if(['time'].includes(el.id)) { setNow(); return; } if(!clearSticky && ['lureType','lureBrand','lureSize','lureColor','attractor','flyMeat'].includes(el.id)) return; if(['platform','trollDir','species','waterDepth','targetDepth'].includes(el.id)) { el.value=''; } else if(el.tagName==='TEXTAREA' || el.tagName==='INPUT' || el.tagName==='SELECT'){ el.value=''; } }); $$('.cond').forEach(x=>x.classList.add('hide')); pendingPhotoDataURL=''; photoInput.value=''; photoPreview.classList.add('hide'); photoPreview.src=''; }
+	function clearCatchForm(){ $$('#tab-log input, #tab-log textarea, #tab-log select').forEach(el=>{ if(el.id==='time'){ setNow(); return; } el.value=''; }); $$('.cond').forEach(x=>x.classList.add('hide')); pendingPhotoDataURL=''; if(photoInput) photoInput.value=''; if(photoPreview){ photoPreview.classList.add('hide'); photoPreview.src=''; } try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(_){ window.scrollTo(0,0); } setTimeout(()=>{ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(_){ } },50); }
 	// (Removed duplicate event listener for #resetForm)
 	async function renderEntries(){ const t=state.trips[currentTripId()]; const tbody=$('#entriesTable tbody'); if(!t){ tbody.innerHTML=''; return; } const rows=await Promise.all(t.entries.map(async e=>{ const lure=[e.lureType,e.lureBrand,e.lureColor].filter(Boolean).join(' • '); const depths=[`W:${e.waterDepth||'-'}`,`T:${e.targetDepth||'-'}`,(e.platform==='Downrigger'?`B:${e.ballDepth||'-'}`:'')].filter(Boolean).join(' / '); const dirSpd=[e.trollDir, e.speedBall?`${e.speedBall} mph`:''].filter(Boolean).join(' • '); let photoCell=''; if(e.photo){ const durl=await getPhoto(e.id); photoCell = durl ? `<img src="${durl}" class="thumb" alt="thumb" data-view="${e.id}"/>` : '📷'; } else { photoCell=''; } const rowClass = e.isBite ? ' class="bite-row"' : ''; const timeCell = `${e.isBite ? '<span class="pill badge bite">🎯 Bite</span> ' : ''}${fmt12hFromParts(e.time||'')}`; return `<tr${rowClass}><td>${timeCell}</td><td><span class=\"pill badge\">${e.platform||''}</span></td><td>${photoCell}</td><td>${lure}</td><td>${depths}</td><td>${dirSpd}</td><td>${e.species||''}</td><td style=\"text-align:right;white-space:nowrap\"><button class=\"btn secondary\" data-edit=\"${e.id}\">Edit</button> <button class=\"btn secondary\" data-viewbtn=\"${e.id}\">View</button> <button class=\"btn secondary\" data-del=\"${e.id}\">Delete</button></td></tr>`; })); tbody.innerHTML = rows.join(''); $$('button[data-del]').forEach(b=> b.onclick = ()=>{ delEntry(b.dataset.del); }); $$('button[data-viewbtn]').forEach(b=> b.onclick = ()=>{ openLightbox(b.dataset.viewbtn); }); $$('button[data-edit]').forEach(b=> b.onclick = ()=>{ startEdit(b.dataset.edit); }); $$('img[data-view]').forEach(img=> img.onclick = ()=>{ openLightbox(img.dataset.view); }); }
 	function loadEntryIntoForm(e, duplicate=false){ ['time','platform','trollDir','waterDepth','ballDepth','ballWeight','dipsySize','dipsySetting','copperLen','leadcoreColors','targetDepth','lureType','lureBrand','lureSize','lureColor','attractor','flyMeat','speedBall','sog','strikeDepthSeen','species','lengthIn','weightLb','gps','notes'].forEach(id=>{ const el=$('#'+id); if(el && e[id]) el.value = e[id] ?? ''; }); if(e.platform) $('#platform').dispatchEvent(new Event('change')); if(!duplicate){ editingEntryId=e.id; setEditing(true); pendingPhotoDataURL=''; photoPreview.classList.add('hide'); photoPreview.src=''; } }
@@ -1175,6 +1189,9 @@
 			box.innerHTML=`<h4>Platforms</h4>${fmtList(platforms)||'-'}<h4>Species</h4>${fmtList(species)||'-'}<h4>Lure Types (Top)</h4>${top(lureTypes)||'-'}<h4>Colors (Top)</h4>${top(colors)||'-'}<h4>Water Depth (10s)</h4>${wdBuckets.map(([k,v])=>`${k}: <b>${v}</b>`).join(' • ')||'-'}<h4>Target Depth (10s)</h4>${tdBuckets.map(([k,v])=>`${k}: <b>${v}</b>`).join(' • ')||'-'}<h4>Timeline 15m</h4><div style="display:flex;align-items:flex-end;height:50px;">${spark}</div>`;
 		}
 		function mode(arr){ if(!arr.length) return ''; const map=new Map(); arr.forEach(v=>map.set(v,(map.get(v)||0)+1)); let m='',c=0; map.forEach((n,k)=>{ if(n>c){c=n;m=k;} }); return m; }
+		// Trip slug helpers
+		function generateTripSlug(){ try{ const t=state.trips[currentTripId()]; if(!t) return; const hdr=t.header=t.header||{}; const date = hdr.date || new Date().toISOString().slice(0,10); const now=new Date(); const h=now.getHours(); const min=String(now.getMinutes()).padStart(2,'0'); const ampm=h>=12?'pm':'am'; const h12=(h%12)||12; let near=(hdr.port||'').split(/[,\s]/).filter(Boolean)[0]||''; if(near) near='Near '+near; const slug=`${date}-${h12}.${min}${ampm}${near}`.replace(/\s+/g,''); hdr.slug=slug; save(); }catch(_){ } }
+		function updateTripSlugDisplay(){ try{ const el=document.getElementById('tripSlug'); const t=state.trips[currentTripId()]; if(el){ el.textContent='Trip slug: '+ (t && t.header && t.header.slug || '—'); } }catch(_){ } }
 		function toCsvRow(fields){ return fields.map(v=>{ if(v===null||v===undefined) v=''; v=String(v); if(/[",\n]/.test(v)) v='"'+v.replace(/"/g,'""')+'"'; return v; }).join(','); }
 		async function exportCsv(){ const t=state.trips[currentTripId()]; if(!t) return alert('No trip.'); const h=['TripDate','Time','Timestamp','PortArea','GPS_Lat','GPS_Lon','Waypoint','WaterDepth_ft','SurfaceTemp_F','Platform','DipsySize','DipsySetting','RiggerBallWeight_lb','RiggerBallDepth_ft','TargetDepth_ft','StrikeDepthSeen_ft','SpeedAtBall_mph','SOG_mph','TrollDirection','LureType','LureBrand','LureModel','LureSize','LureColor','Attractor/Flasher','Fly/MeatColor','Species','Length_in','Weight_lb','Notes','HasPhoto']; const lines=[toCsvRow(h)]; const hdr=t.header||{};
 		for(const e of t.entries){
@@ -1282,7 +1299,6 @@
 
 	// Thermocline & Plan (beta) — lightweight implementation
 	attach('#genThermoPlan','click', async ()=>{
-		if(!(state.settings && state.settings.thermoBeta)) { toast('Enable beta in Settings'); return; }
 		// ensure panel visible and navigate to Catch Log tab for context
 		const panel = document.getElementById('thermoPlanPanel'); if(panel) panel.style.display = '';
 		const statusEl = document.getElementById('thermoStatus'); const outEl = document.getElementById('thermoResult');
@@ -1411,8 +1427,8 @@
 			// Add ts to entries if missing
 	Object.values(state.trips||{}).forEach(trip=>{ (trip.entries||[]).forEach(e=>{ if(!e.ts){ const ts=computeTs(trip.header, e.time); e.ts=ts; } }); });
 	save(); indicateSaved(); }
-	function initPrefs(){ $('#prefQuickDefault').checked = !!(state.settings && state.settings.quickMode); $('#prefSticky').checked = ((state.settings && state.settings.sticky) !== false); $('#prefThermoBeta').checked = !!(state.settings && state.settings.thermoBeta); }
-	function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; state.settings.thermoBeta = $('#prefThermoBeta').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; const st = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : ''; state.settings.stationJsonTemplate = st; save(); indicateSaved(); toast('Preferences saved'); applyQuickMode(); applyThermoVisibility(); }
+	function initPrefs(){ $('#prefQuickDefault').checked = !!(state.settings && state.settings.quickMode); $('#prefSticky').checked = ((state.settings && state.settings.sticky) !== false); }
+	function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; const st = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : ''; state.settings.stationJsonTemplate = st; save(); indicateSaved(); toast('Preferences saved'); applyQuickMode(); }
 	// persist sheet web app settings when saving prefs
 	function loadSheetPrefsIntoForm(){ try{ const el = $('#sheetWebAppUrl'); if(el) el.value = (state.settings && state.settings.sheetWebAppUrl) || ''; }catch(e){} try{ const s = $('#sheetSecret'); if(s) s.value = (state.settings && state.settings.sheetSecret) || ''; }catch(e){} }
 	// update savePrefs to persist new fields
@@ -1423,10 +1439,8 @@
 	function applyThermoVisibility(){
 		const btn = document.getElementById('genThermoPlan');
 		const panel = document.getElementById('thermoPlanPanel');
-		const enabled = !!(state.settings && state.settings.thermoBeta);
-		if(btn) btn.style.display = enabled ? '' : 'none';
-		if(panel) panel.style.display = 'none'; // hidden by default; shown after generation
-		const res = document.getElementById('thermoResult'); if(res && !enabled) res.textContent = 'Enable in Settings to use this.';
+		if(btn) btn.style.display = '';
+		if(panel) panel.style.display = 'none';
 	}
 		function applyQuickMode(){ const quick = state.settings.quickMode; // Update menu item too
 			const qm=document.getElementById('quickModeMenu'); if(qm) qm.textContent = 'Quick Mode: '+(quick?'On':'Off');
@@ -1448,6 +1462,9 @@
 					fetch('stations.json', { cache: 'no-store' }).then(r=>r.json()).then(js=>{ window.__stations = js || [] }).catch(()=>{ window.__stations = []; });
 				}catch(e){ window.__stations = []; }
 			loadHeaderIntoForm(); applyQuickMode(); applyThermoVisibility(); updateLogBadge();
+			// gate fields until first conditions fetch
+			try{ const setup=document.getElementById('tab-setup'); if(setup) setup.classList.add('pending-conditions'); }catch(_){ }
+			updateTripSlugDisplay();
 			// hydrate Marine Snapshot UI from header if present
 			try{
 				const t = state.trips[currentTripId()]; const hdr = t && t.header || {};
@@ -1462,7 +1479,8 @@
 		}
 	attach('#prefSticky','change', ()=>{ /* immediate reflection not needed */ });
 	attach('#prefQuickDefault','change', ()=>{ /* just state toggle on save */ });
-	attach('#prefThermoBeta','change', ()=>{ /* just reflect on save */ });
+	// Conditional lure field visibility (attractor/fly only for Flasher/Fly & Meat Rig)
+	(function(){ const lt=document.getElementById('lureType'); const aWrap=document.getElementById('attractor')?.parentElement; const fWrap=document.getElementById('flyMeat')?.parentElement; function upd(){ const v=lt?lt.value:''; const show = (v==='Flasher/Fly'||v==='Meat Rig'); if(aWrap) aWrap.style.display = show? '' : 'none'; if(fWrap) fWrap.style.display = show? '' : 'none'; if(!show){ if(document.getElementById('attractor')) document.getElementById('attractor').value=''; if(document.getElementById('flyMeat')) document.getElementById('flyMeat').value=''; } } if(lt){ lt.addEventListener('change', upd); upd(); } })();
 		attach('#quickToggle','dblclick', ()=>{ // quick clear validation marks
 			$$('#tab-log .invalid').forEach(el=>el.classList.remove('invalid')); });
 		init();
@@ -1725,6 +1743,8 @@
 				`Cd(ball) ${cdBall} • Cd(cable) ${cdCable} • Dia ${diaIn.toFixed(2)} in • Est model (beta)</span>`;
 		}
 		try{ const sb = document.getElementById('speedBall'); if(sb){ sb.value = mphBall.toFixed(2); sb.classList.add('auto-filled'); setTimeout(()=> sb.classList.remove('auto-filled'), 2500); } }catch(_){ }
+		// Also overwrite SOG field (always latest calculation)
+		try{ const sogEl=document.getElementById('sog'); if(sogEl){ sogEl.value = sog.toFixed(2); sogEl.classList.add('auto-filled'); setTimeout(()=> sogEl.classList.remove('auto-filled'), 2500); } }catch(_){ }
 	}
 	const btn = document.getElementById('calcRiggerBtn');
 	if(btn) btn.addEventListener('click', calc);
