@@ -482,6 +482,11 @@
 				const id = ensureTrip();
 				const trip = state.trips[id]; trip.header = trip.header || {};
 				trip.header.lastLat = lat.toFixed(5); trip.header.lastLon = lon.toFixed(5); trip.header.conditionsCachedAt = Date.now();
+				// If date/start empty, fill them now (user tapped GPS first)
+				try{
+					const dEl=document.getElementById('tripDate'); if(dEl && !dEl.value){ dEl.value = new Date().toISOString().slice(0,10); }
+					const stEl=document.getElementById('startTime'); if(stEl && !stEl.value){ stEl.value = new Date().toTimeString().slice(0,5); }
+				}catch(_){ }
 				// Weather (air, wind, clouds)
 				try{
 					const w = await fetchOpenMeteo(lat, lon);
@@ -499,18 +504,28 @@
 						if(isFinite(m.waveM)) $('#waves').value = (m.waveM*3.28084).toFixed(1);
 					}
 				}catch(e){ console.warn('marine fetch failed', e); }
-				// Nearest station (if station list loaded)
+				// Nearest station (if station list loaded) & enrich port field
 				try{
 					const stations = window.__stations || [];
 					if(stations.length){
 						let best=null, bestD=Infinity;
 						for(const s of stations){ const d = haversineKm(lat, lon, s.lat, s.lon); if(d<bestD){ bestD=d; best=s; } }
-						if(best){ const stEl = document.getElementById('conditionsStation'); if(stEl) stEl.textContent = `${best.id} (${bestD.toFixed(1)} km)`; }
+						if(best){
+							const stEl = document.getElementById('conditionsStation'); if(stEl) stEl.textContent = `${best.id} (${bestD.toFixed(1)} km)`;
+							// build port description if empty
+							const portEl=document.getElementById('port');
+							if(portEl && !portEl.value){
+								const loc = best.name || best.id;
+								portEl.value = `${best.id} (${loc}) - ${bestD.toFixed(1)} km`;
+							}
+						}
 					}
 				}catch(e){ console.warn('station nearest failed', e); }
 				$('#conditionsCached').textContent = new Date().toLocaleTimeString();
 				// Ungate setup form
 				try{ const setup=document.getElementById('tab-setup'); if(setup) setup.classList.remove('pending-conditions'); }catch(_){ }
+				// Generate slug now that we likely have key pieces
+				try{ generateTripSlug(); updateTripSlugDisplay(); refreshTripSelect(); }catch(_){ }
 				// Persist header updates
 				trip.updatedAt = Date.now(); save(); indicateSaved();
 			});
@@ -520,6 +535,17 @@
 		}
 	});
 	attach('#saveTrip', 'click', saveHeader);
+	// Regenerate slug when date/startTime/port change
+	['#tripDate','#startTime','#port'].forEach(sel=> attach(sel,'change', ()=>{
+		const id=currentTripId(); if(!id) return; const t=state.trips[id]; if(!t) return; const h=t.header=t.header||{};
+		if(sel==='#tripDate') h.date=$('#tripDate').value;
+		if(sel==='#startTime') h.startTime=$('#startTime').value;
+		if(sel==='#port') h.port=$('#port').value;
+		try{ h.slug = buildSlugFromHeader(h); save(); refreshTripSelect(); const el=document.getElementById('tripSlug'); if(el) el.textContent='Trip slug: '+h.slug; }catch(_){ }
+	}));
+	// Lure conditional visibility logic
+	function updateLureVisibility(){ try{ const lt=$('#lureType')?$('#lureType').value:''; const attr=$('#attractor')&&$('#attractor').closest('div'); const fly=$('#flyMeat')&&$('#flyMeat').closest('div'); if(!attr||!fly) return; const hideAll=(lt==='Spoon'||lt==='Plug'||lt==='Other'); if(hideAll){ attr.style.display='none'; fly.style.display='none'; return; } const need=(lt==='Flasher/Fly'||lt==='Meat Rig'); attr.style.display = need? '' : 'none'; fly.style.display = need? '' : 'none'; }catch(_){ } }
+	attach('#lureType','change', updateLureVisibility); setTimeout(updateLureVisibility, 300);
 	attach('#newTrip', 'click', async () => {
 					const id = uid();
 					state.trips[id] = { id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now() };
@@ -1026,12 +1052,17 @@
 	// (Removed duplicate event listeners for #saveLists and #restoreDefaults)
 		function currentTripId(){ return $('#tripSelect').value || null; }
 	function ensureTrip(){ let id=currentTripId(); if(!id){ id=uid(); state.trips[id]={id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()}; $('#tripSelect').value=id; save(); indicateSaved(); refreshTripSelect(); } return id; }
-	function refreshTripSelect(){ const sel=$('#tripSelect'); const opts=Object.values(state.trips).sort((a,b)=>{ const ad=(b.header && b.header.date) || ''; const bd=(a.header && a.header.date) || ''; return ad.localeCompare(bd); }); sel.innerHTML = opts.map(t=>`<option value="${t.id}">${(t.header && t.header.date)||'(no date)'} • ${ (t.header && t.header.port) || 'Port'}</option>`).join(''); }
+	function refreshTripSelect(){
+		const sel=$('#tripSelect'); if(!sel) return;
+		const trips = Object.values(state.trips);
+		trips.sort((a,b)=> (b.startedAt||b.createdAt||0) - (a.startedAt||a.createdAt||0));
+		sel.innerHTML = trips.map(t=>{ const h=t.header||{}; const slug = h.slug || buildSlugFromHeader(h); return `<option value="${t.id}">${slug||'(no slug)'}</option>`; }).join('');
+	}
+	function buildSlugFromHeader(h){ if(!h) h={}; const date = h.date || new Date().toISOString().slice(0,10); let hh='',mm=''; if(h.startTime && /\d{2}:\d{2}/.test(h.startTime)){ hh=h.startTime.slice(0,2); mm=h.startTime.slice(3,5);} else { const d=new Date(); hh=String(d.getHours()).padStart(2,'0'); mm=String(d.getMinutes()).padStart(2,'0'); } let hNum=parseInt(hh,10); if(isNaN(hNum)) hNum=new Date().getHours(); const ampm=hNum>=12?'pm':'am'; const h12=(hNum%12)||12; let portRoot=''; if(h.port){ portRoot=h.port.split(/[\s,/-]/).filter(Boolean)[0]||''; } return portRoot? `${date}-${h12}.${mm}${ampm}(Near ${portRoot})` : `${date}-${h12}.${mm}${ampm}`; }
 	function aggressiveScrollTop(){ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(_){ window.scrollTo(0,0); } setTimeout(()=>{ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(_){ } },40); requestAnimationFrame(()=>{ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(_){ } }); setTimeout(()=>{ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(_){ } },120); }
 	function saveHeader(){
 		const id=currentTripId()||uid();
 		state.trips[id]=state.trips[id]||{id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()};
-		// Preserve previously cached GPS & marine snapshot fields
 		const existing = state.trips[id].header || {};
 		state.trips[id].header = Object.assign({}, existing, {
 			date:$('#tripDate').value,
@@ -1047,6 +1078,8 @@
 			clouds:$('#clouds').value,
 			gearNotes:$('#gearNotes')?$('#gearNotes').value:''
 		});
+		// slug
+		try{ state.trips[id].header.slug = buildSlugFromHeader(state.trips[id].header); }catch(_){ }
 		state.trips[id].updatedAt=Date.now();
 		state.trips[id].active = true;
 		save(); refreshTripSelect(); $('#tripSelect').value=id;
@@ -1054,19 +1087,8 @@
 		location.hash = '#tab-log';
 		aggressiveScrollTop();
 		applyActiveTripGating();
-		// Attempt plan only if GPS already cached AND no existing lastPlanAt (prevent auto-regenerate)
-		try{
-			const hdr = state.trips[id].header;
-			const lat = parseFloat(hdr.lastLat||'');
-			const lon = parseFloat(hdr.lastLon||'');
-			const planBtn = document.getElementById('genThermoPlan');
-			if(isFinite(lat) && isFinite(lon) && planBtn && !hdr.lastPlanAt){
-				setTimeout(()=>{ try{ planBtn.click(); aggressiveScrollTop(); }catch(_){ } }, 600);
-			}else{
-				const panel = document.getElementById('thermoPlanPanel'); if(panel) panel.style.display='';
-				const status = document.getElementById('thermoStatus'); if(status && !hdr.lastPlanAt) status.textContent='Run Catch Conditions (GPS) then Generate plan.';
-			}
-		}catch(_){ }
+		// Attempt plan once if not yet generated
+		try{ const hdr=state.trips[id].header; const btn=document.getElementById('genThermoPlan'); if(btn && !hdr.lastPlanAt){ setTimeout(()=>{ try{ btn.click(); aggressiveScrollTop(); }catch(_){ } }, 500); } }catch(_){ }
 	}
 
 	// Determine active via explicit flag set on Start Trip and cleared on End/New
