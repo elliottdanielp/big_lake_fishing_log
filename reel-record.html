@@ -448,6 +448,19 @@
 	const $ = (sel) => document.querySelector(sel);
 	const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 	const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+	// ---- Restored utility functions (toast, hideToast, showUndo, download) ----
+	function toast(msg, action){
+		const t = document.getElementById('toast'); if(!t) return; t.innerHTML = '';
+		const span = document.createElement('span'); span.textContent = msg; t.appendChild(span);
+		if(action && action.label && action.onclick){
+			const btn = document.createElement('button'); btn.className='btn secondary'; btn.type='button'; btn.textContent=action.label; btn.addEventListener('click', action.onclick); t.appendChild(btn);
+		}
+		t.style.display='block'; t.style.opacity='1';
+	}
+	function hideToast(){ const t=document.getElementById('toast'); if(!t) return; t.style.opacity='0'; setTimeout(()=>{ if(t.style.opacity==='0') t.style.display='none'; }, 350); }
+	function showUndo(){ toast('Entry deleted', { label:'Undo', onclick:()=>{ try{ undoDelete(); }catch(_){ } } }); }
+	function download(filename, data){ try{ const blob=new Blob([data], {type:'text/plain'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0); }catch(e){ console.warn('download failed', e); } }
+	// -------------------------------------------------------------------------
 	// Helper for older browsers: attach event only if element exists (avoids optional-chaining syntax)
 	function attach(selector, evt, handler) { const el = document.querySelector(selector); if (el) el.addEventListener(evt, handler); }
 	const onReady = (fn) => { if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', fn); else fn(); };
