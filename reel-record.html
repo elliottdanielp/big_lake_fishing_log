@@ -456,185 +456,73 @@
 				try{ if('scrollRestoration' in history) history.scrollRestoration = 'manual'; }catch(_){}
 			// All other event listeners below (move all listeners inside this block)
 	attach('#fetchConditions', 'click', async () => {
-				// Minimal local-only implementation: attempt geolocation then mark conditions cached.
-				try {
-					if (!('geolocation' in navigator)) {
-						toast('Geolocation unavailable');
-						return;
-					}
-					navigator.geolocation.getCurrentPosition(async pos => {
-						const { latitude, longitude } = pos.coords;
-						// store coords in the header for reference and populate GPS field on the catch form
-						const cur = currentTripId();
-						const lat = Number(latitude).toFixed(5);
-						const lon = Number(longitude).toFixed(5);
-						if (cur && state.trips[cur]) {
-							state.trips[cur].header = state.trips[cur].header || {};
-							state.trips[cur].header.lastLat = lat;
-							state.trips[cur].header.lastLon = lon;
-							state.trips[cur].header.lastFetchedAt = Date.now();
-							save(); indicateSaved();
-						}
-						const el = document.getElementById('conditionsCached');
-						if (el) el.textContent = new Date().toLocaleString() + ' • ' + lat + ', ' + lon;
-						// also prefill the GPS input in the catch form so new entries inherit the location
-						const gpsInput = document.getElementById('gps');
-						if (gpsInput && !gpsInput.value) gpsInput.value = lat + ', ' + lon;
-						// Fetch weather via Open-Meteo to populate airTemp, wind and clouds (best-effort)
-						try{
-							const wm = await fetchOpenMeteo(latitude, longitude);
-							if(wm && typeof wm.tempC === 'number'){
-								// convert to °F for the UI
-								const f = Math.round((wm.tempC * 9/5) + 32);
-								const airEl = document.getElementById('airTemp');
-								if(airEl) airEl.value = f;
-								// store
-								if(cur && state.trips[cur]) state.trips[cur].header.airTemp = String(f);
-							}
-							if(wm && typeof wm.windKmh === 'number'){
-								const mph = Math.round(wm.windKmh / 1.609);
-								const dir = (typeof wm.windDeg==='number') ? degToCompass(wm.windDeg) : '';
-								const wstr = dir ? `${dir} ${mph} mph` : `${mph} mph`;
-								const windEl = document.getElementById('wind');
-								if(windEl) windEl.value = wstr;
-								if(cur && state.trips[cur]) state.trips[cur].header.wind = wstr;
-							}
-							if(wm && typeof wm.cloudPct === 'number'){
-								// map cloud % to nearest option in #clouds select if possible
-								const cloudsEl = document.getElementById('clouds');
-								let label = '';
-								if(cloudsEl){
-									const pct = wm.cloudPct;
-									// simple mapping: 0-10 Clear, 11-50 Partly, 51-100 Overcast
-									if(pct<=10) label = 'Clear'; else if(pct<=50) label = 'Partly'; else label = 'Overcast';
-									// pick matching option if present
-									const found = Array.from(cloudsEl.options).find(o=>o.text.toLowerCase().startsWith(label.toLowerCase()));
-									if(found) { cloudsEl.value = found.value || found.text; }
-									else { try{ cloudsEl.insertAdjacentHTML('beforeend', `<option>${label}</option>`); cloudsEl.value = label; }catch(_){} }
-								}
-								if(cur && state.trips[cur]) state.trips[cur].header.clouds = label;
-							}
-							// attempt to fetch marine / surface data (sea surface temp, waves)
-							try{
-								// compute nearest station if we have a stations list
-								let nearest = null;
-								try{
-									const stations = window.__stations || [];
-									if(stations.length){
-										const toR = n => n * Math.PI / 180;
-										const hav = (a,b)=>{ const R=6371; const dLat=toR(b.lat-a.lat); const dLon=toR(b.lon-a.lon); const la=toR(a.lat), lb=toR(b.lat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
-										let best=null, bestD=Infinity; stations.forEach(s=>{ const d = hav({lat: latitude, lon: longitude}, {lat:s.lat, lon:s.lon}); if(d<bestD){ bestD=d; best=s; } }); if(best) nearest = Object.assign({}, best, {distKm: bestD});
-									}
-								}catch(e){ console.warn('stations lookup failed', e); }
-								if(nearest){ 
-									const cs = document.getElementById('conditionsStation'); 
-									if(cs) cs.textContent = nearest.name + ' • ' + (nearest.distKm? nearest.distKm.toFixed(1)+' km':''); 
-									// Auto-fill Port/Area from nearest station if port field empty
-									try{
-										const portEl = document.getElementById('port');
-										if(portEl && !portEl.value){
-											const portVal = nearest.name + (nearest.distKm? (' • '+nearest.distKm.toFixed(1)+' km') : '');
-											portEl.value = portVal;
-											if(cur && state.trips[cur]) state.trips[cur].header.port = portVal;
-										}
-										// Auto-fill date and start time if empty
-										const dateEl = document.getElementById('tripDate');
-										const timeEl = document.getElementById('startTime');
-										const now = new Date();
-										if(dateEl && !dateEl.value){ const localDate = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0'); dateEl.value = localDate; if(cur && state.trips[cur]) state.trips[cur].header.date = localDate; }
-										if(timeEl && !timeEl.value){ const t = now.toTimeString().slice(0,5); timeEl.value = t; if(cur && state.trips[cur]) state.trips[cur].header.startTime = t; }
-										// persist the header after auto-filling
-										save(); indicateSaved();
-									}catch(e){ console.warn('auto-fill port/date failed', e); }
-								}
-
-								// try station-specific JSON template if configured
-								let marine = null;
-								try{
-									const tpl = (state.settings && state.settings.stationJsonTemplate) ? String(state.settings.stationJsonTemplate).trim() : '';
-									if(tpl && nearest){
-										const url = tpl.replace('{station}', encodeURIComponent(nearest.id)).replace('{lat}', encodeURIComponent(latitude)).replace('{lon}', encodeURIComponent(longitude));
-										try{
-											const r = await fetch(url, { cache: 'no-store' });
-											if(r.ok){
-												const js = await r.json();
-												const s = js && (js.sstC ?? js.surfaceTempC ?? js.sst ?? null);
-												const wv = js && (js.waveM ?? js.significant_wave_height ?? js.wave ?? null);
-												if(s!==null || wv!==null){ marine = { sstC: s===null?null:Number(s), waveM: wv===null?null:Number(wv) }; }
-											} else { console.warn('station template HTTP', r.status); }
-										}catch(e){ console.warn('station template fetch failed', e); }
-									}
-								}catch(e){ console.warn('station template handling failed', e); }
-
-								// fallback to default marine fetch if we didn't get a station JSON
-								if(!marine){
-									marine = await fetchMarineNearest(latitude, longitude);
-								}
-
-								if(marine){
-									if(typeof marine.sstC === 'number'){
-										const sstF = Math.round((marine.sstC * 9/5) + 32);
-										const sEl = document.getElementById('surfaceTemp');
-										if(sEl) sEl.value = sstF;
-										if(cur && state.trips[cur]) state.trips[cur].header.surfaceTemp = String(sstF);
-									}
-									if(typeof marine.waveM === 'number'){
-										const waveFt = (marine.waveM * 3.28084).toFixed(1);
-										const wEl = document.getElementById('waves');
-										if(wEl) wEl.value = waveFt;
-										if(cur && state.trips[cur]) state.trips[cur].header.waves = String(waveFt);
-									}
-									// persist source metadata, snapshot for undo, show human timestamp and highlight fields
-									try{
-										const ms = document.getElementById('marineSource');
-										const stationId = (marine && marine.station) ? String(marine.station) : (nearest && nearest.id ? String(nearest.id) : '');
-										const src = stationId ? `buoy ${stationId}` : 'autofill';
-										if(cur && state.trips[cur]){
-											// snapshot previous header for undo
-											pendingMarineUndo = { id: cur, prevHeader: Object.assign({}, state.trips[cur].header || {}) };
-											state.trips[cur].header.marineSource = src;
-											state.trips[cur].header.marineFetchedAt = Date.now();
-											if(stationId) state.trips[cur].header.marineStation = stationId;
-										}
-										if(ms){
-											const d = new Date(state.trips[cur].header.marineFetchedAt);
-											ms.textContent = 'Source: Auto-filled from ' + src + ' • ' + d.toLocaleString();
-										}
-										// highlight the auto-filled fields briefly
-										try{ const sEl = document.getElementById('surfaceTemp'); const wEl = document.getElementById('waves'); if(sEl){ sEl.classList.add('auto-filled'); setTimeout(()=>sEl.classList.remove('auto-filled'), 3000); } if(wEl){ wEl.classList.add('auto-filled'); setTimeout(()=>wEl.classList.remove('auto-filled'), 3000); } }catch(e){}
-										// show undo in toast
-										toast('Conditions cached (local) — values auto-filled. <button class="btn secondary" id="undoMarineBtn">Undo</button>', true);
-										setTimeout(hideToast, 8000);
-										// wire undo button once shown
-										setTimeout(()=>{ const b = document.getElementById('undoMarineBtn'); if(b) b.addEventListener('click', ()=>{ if(pendingMarineUndo && pendingMarineUndo.id){ const id = pendingMarineUndo.id; state.trips[id].header = pendingMarineUndo.prevHeader || {}; save(); indicateSaved(); loadHeaderIntoForm(); const ms2 = document.getElementById('marineSource'); if(ms2) ms2.textContent = 'Source: —'; pendingMarineUndo = null; toast('Auto-fill undone'); setTimeout(hideToast, 1600); } }); }, 50);
-									}catch(e){ console.warn('failed to persist marine source', e); }
-
-									// trigger Marine Snapshot fusion right after successful marine fetch
-									try{ await runMarineSnapshot(lat, lon); }catch(_){ }
-									// On first successful conditions fetch of a gated setup: remove gating & generate slug
-									try{
-										const setupSec = document.getElementById('tab-setup');
-										if(setupSec && setupSec.classList.contains('pending-conditions')){
-											setupSec.classList.remove('pending-conditions');
-											generateTripSlug();
-										}
-										updateTripSlugDisplay();
-									}catch(_){ }
-								}
-							}catch(e){ console.warn('marine fetch error', e); }
-							save(); indicateSaved();
-						}catch(err){
-							console.warn('Weather fetch failed', err);
-						}
-						toast('Conditions cached (local)');
-						// auto-hide the toast quickly so it doesn't obscure form fields on small screens
-						setTimeout(hideToast, 1600);
-					}, err => {
-						toast('Could not get location: ' + (err && err.message));
-						setTimeout(hideToast, 2000);
-					}, { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 });
-				} catch (err) { console.warn('fetchConditions error', err); toast('Failed to fetch conditions'); }
-			});
+		// ensure panel visible and navigate to Catch Log tab for context
+		const panel = document.getElementById('thermoPlanPanel'); if(panel) panel.style.display = '';
+		const statusEl = document.getElementById('thermoStatus'); const outEl = document.getElementById('thermoResult');
+		if(statusEl) statusEl.textContent = 'Gathering sources...'; if(outEl) outEl.textContent = '';
+		// switch to Catch Log so the panel is visible
+		try{ location.hash = '#tab-log'; }catch(_){ }
+		try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); }
+		const btn = document.getElementById('genThermoPlan'); const originalBtnTxt = btn? btn.textContent : '';
+		if(btn){ btn.disabled = true; btn.textContent = 'Generating...'; }
+		try{
+			const t = state.trips[currentTripId()]; if(!t) { if(statusEl) statusEl.textContent='No trip'; return; }
+			const hdr = t.header || {}; const lat = parseFloat(hdr.lastLat||''); const lon = parseFloat(hdr.lastLon||'');
+			if(!isFinite(lat) || !isFinite(lon)) { if(statusEl) statusEl.textContent='No GPS cached. Tap Catch Conditions (GPS) first.'; return; }
+			const stations = (window.__stations||[]).slice();
+			// First pass: <=45 km up to 18 stations
+			let near = stations.map(s=>({s,d:haversineKm(lat,lon,s.lat,s.lon)}))
+				.filter(x=> x.d <=45)
+				.sort((a,b)=> a.d - b.d)
+				.slice(0,18)
+				.map(x=> x.s);
+			if(statusEl) statusEl.textContent = `Found ${near.length} nearby (<=45 km)...`;
+			const tpl = (state.settings && state.settings.stationJsonTemplate) ? String(state.settings.stationJsonTemplate).trim(): '';
+			const profiles=[];
+			for(const s of near){
+				if(!tpl) continue;
+				try{
+					const url = tpl.replace('{station}', encodeURIComponent(s.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+					const u2 = url + (url.includes('?')?'&':'?') + 'prefer=ocean-spec&include=profile';
+					const r = await fetch(u2,{cache:'no-store'}); if(r.ok){ const js=await r.json(); const prof=normalizeProfile(js,s,lat,lon); if(prof) profiles.push(prof); }
+				}catch(_){ }
+			}
+			// Fallback expansion if <4 profiles: extend to 65 km up to total 25
+			if(profiles.length < 4){
+				if(statusEl) statusEl.textContent = `Few profiles (${profiles.length}); expanding search...`;
+				const expanded = stations.map(s=>({s,d:haversineKm(lat,lon,s.lat,s.lon)}))
+					.filter(x=> x.d <=65)
+					.sort((a,b)=> a.d - b.d)
+					.slice(0,25)
+					.map(x=> x.s)
+					.filter(s=> !near.find(n=> n.id===s.id));
+				for(const s of expanded){
+					if(!tpl) continue;
+					try{
+						const url = tpl.replace('{station}', encodeURIComponent(s.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+						const u2 = url + (url.includes('?')?'&':'?') + 'prefer=ocean-spec&include=profile';
+						const r = await fetch(u2,{cache:'no-store'}); if(r.ok){ const js=await r.json(); const prof=normalizeProfile(js,s,lat,lon); if(prof) profiles.push(prof); }
+					}catch(_){ }
+				}
+				near = near.concat(expanded);
+			}
+			if(!profiles.length){ if(statusEl) statusEl.textContent = 'No profile data; estimating from surface and history...';
+				// estimate band using surface temp and recent entries
+				const surfF = parseFloat(hdr.surfaceTemp||'');
+				const est = estimateFromHistory(t, isFinite(surfF)? (surfF-32)*5/9 : null);
+				renderPlan(est, outEl, statusEl);
+				return;
+			}
+			if(statusEl) statusEl.textContent = `Analyzing ${profiles.length} station profiles...`;
+			const stationResults = profiles.map(p=> perStationThermo(p));
+			if(statusEl) statusEl.textContent = 'Fusing corridor...';
+			const comp = fuseThermo(stationResults, {lat, lon});
+			renderPlan(comp, outEl, statusEl);
+			// persist lastPlanAt
+			try{ t.header.lastPlanAt = Date.now(); save(); indicateSaved(); }catch(_){ }
+		}catch(e){ console.warn('thermo plan error', e); if(statusEl) statusEl.textContent='Failed to generate plan'; }
+		finally{ if(btn){ btn.disabled=false; btn.textContent = originalBtnTxt; } }
+	});
 	attach('#saveTrip', 'click', saveHeader);
 	attach('#newTrip', 'click', async () => {
 					const id = uid();
@@ -642,6 +530,9 @@
 				save(); refreshTripSelect();
 				const sel=document.getElementById('tripSelect'); if(sel) sel.value=id;
 				loadHeaderIntoForm(); applyActiveTripGating();
+				// Re-enable gating UI
+				try{ const setup=document.getElementById('tab-setup'); if(setup){ setup.classList.add('pending-conditions'); } }catch(_){ }
+				updateTripSlugDisplay();
 				toast('New trip started'); setTimeout(hideToast, 1200);
 			});
 	attach('#tripSelect', 'change', () => {
@@ -1005,7 +896,7 @@
 			const enriched = rows.map(r=>{
 				const dKm = haversineKm(ref.lat, ref.lon, r.lat, r.lon);
 				const dtH = Math.abs(now - r.when)/3600000;
-				const w = Math.exp(-dKm/30) * Math.exp(-dtH/6);
+				const w = Math.exp(-dKm/30) * Math.exp(-dtH/6) * (r.isChain?1.15:1.0) * Math.max(0.1, Math.min(1, r.tc_conf||0.5));
 				return Object.assign({ w, dKm, dtH }, r);
 			});
 			function pruneAndMean(arr, key){
@@ -1088,7 +979,49 @@
 		function currentTripId(){ return $('#tripSelect').value || null; }
 	function ensureTrip(){ let id=currentTripId(); if(!id){ id=uid(); state.trips[id]={id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()}; $('#tripSelect').value=id; save(); indicateSaved(); refreshTripSelect(); } return id; }
 	function refreshTripSelect(){ const sel=$('#tripSelect'); const opts=Object.values(state.trips).sort((a,b)=>{ const ad=(b.header && b.header.date) || ''; const bd=(a.header && a.header.date) || ''; return ad.localeCompare(bd); }); sel.innerHTML = opts.map(t=>`<option value="${t.id}">${(t.header && t.header.date)||'(no date)'} • ${ (t.header && t.header.port) || 'Port'}</option>`).join(''); }
-	function saveHeader(){ const id=currentTripId()||uid(); state.trips[id]=state.trips[id]||{id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()}; state.trips[id].header={ date:$('#tripDate').value, startTime:$('#startTime').value, port:$('#port').value, boat:$('#boat').value, crew:$('#crew').value, hours:$('#hours').value, airTemp:$('#airTemp').value, surfaceTemp:$('#surfaceTemp').value, wind:$('#wind').value, waves:$('#waves').value, clouds:$('#clouds').value, gearNotes:$('#gearNotes')?$('#gearNotes').value:'' }; state.trips[id].updatedAt=Date.now(); state.trips[id].active = true; save(); refreshTripSelect(); $('#tripSelect').value=id; toast('Trip started'); setTimeout(hideToast, 1200); location.hash = '#tab-log'; try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } setTimeout(()=>{ try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); } }, 50); applyActiveTripGating(); setTimeout(()=>{ try{ document.getElementById('genThermoPlan')?.click(); }catch(_){ } }, 500); }
+	function aggressiveScrollTop(){ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(_){ window.scrollTo(0,0); } setTimeout(()=>{ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(_){ } },40); requestAnimationFrame(()=>{ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(_){ } }); setTimeout(()=>{ try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(_){ } },120); }
+	function saveHeader(){
+		const id=currentTripId()||uid();
+		state.trips[id]=state.trips[id]||{id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()};
+		// Preserve previously cached GPS & marine snapshot fields
+		const existing = state.trips[id].header || {};
+		state.trips[id].header = Object.assign({}, existing, {
+			date:$('#tripDate').value,
+			startTime:$('#startTime').value,
+			port:$('#port').value,
+			boat:$('#boat').value,
+			crew:$('#crew').value,
+			hours:$('#hours').value,
+			airTemp:$('#airTemp').value,
+			surfaceTemp:$('#surfaceTemp').value,
+			wind:$('#wind').value,
+			waves:$('#waves').value,
+			clouds:$('#clouds').value,
+			gearNotes:$('#gearNotes')?$('#gearNotes').value:''
+		});
+		state.trips[id].updatedAt=Date.now();
+		state.trips[id].active = true;
+		save(); refreshTripSelect(); $('#tripSelect').value=id;
+		toast('Trip started'); setTimeout(hideToast, 1200);
+		location.hash = '#tab-log';
+		aggressiveScrollTop();
+		applyActiveTripGating();
+		// Attempt plan only if GPS already cached
+		const hdr = state.trips[id].header;
+		const lat = parseFloat(hdr.lastLat||'');
+		const lon = parseFloat(hdr.lastLon||'');
+		const planBtn = document.getElementById('genThermoPlan');
+		if(isFinite(lat) && isFinite(lon) && planBtn){
+			setTimeout(()=>{ try{ planBtn.click(); aggressiveScrollTop(); }catch(_){ } }, 500);
+		} else {
+			// Show panel with helpful message instead of "No GPS cached" confusion
+			const panel = document.getElementById('thermoPlanPanel');
+			if(panel){ panel.style.display=''; }
+			const status = document.getElementById('thermoStatus');
+			if(status) status.textContent='Run Catch Conditions (GPS) to enable thermocline fusion.';
+			aggressiveScrollTop();
+		}
+	}
 
 	// Determine active via explicit flag set on Start Trip and cleared on End/New
 	function isTripActive(){ const t=state.trips[currentTripId()]; return !!(t && t.active === true); }
@@ -1189,6 +1122,9 @@
 			box.innerHTML=`<h4>Platforms</h4>${fmtList(platforms)||'-'}<h4>Species</h4>${fmtList(species)||'-'}<h4>Lure Types (Top)</h4>${top(lureTypes)||'-'}<h4>Colors (Top)</h4>${top(colors)||'-'}<h4>Water Depth (10s)</h4>${wdBuckets.map(([k,v])=>`${k}: <b>${v}</b>`).join(' • ')||'-'}<h4>Target Depth (10s)</h4>${tdBuckets.map(([k,v])=>`${k}: <b>${v}</b>`).join(' • ')||'-'}<h4>Timeline 15m</h4><div style="display:flex;align-items:flex-end;height:50px;">${spark}</div>`;
 		}
 		function mode(arr){ if(!arr.length) return ''; const map=new Map(); arr.forEach(v=>map.set(v,(map.get(v)||0)+1)); let m='',c=0; map.forEach((n,k)=>{ if(n>c){c=n;m=k;} }); return m; }
+		// Trip slug helpers
+		function generateTripSlug(){ try{ const t=state.trips[currentTripId()]; if(!t) return; const hdr=t.header=t.header||{}; const date = hdr.date || new Date().toISOString().slice(0,10); const now=new Date(); const h=now.getHours(); const min=String(now.getMinutes()).padStart(2,'0'); const ampm=h>=12?'pm':'am'; const hour12=(h%12)||12; let near=hdr.port||''; if(near){ near=near.split(/[,\s]/).filter(Boolean)[0]; near=near?('Near '+near):''; } const slug=`${date}-${hour12}.${min}${ampm}${near}`.replace(/\s+/g,''); hdr.slug=slug; save(); }catch(_){ }}
+		function updateTripSlugDisplay(){ try{ const el=document.getElementById('tripSlug'); const t=state.trips[currentTripId()]; if(el){ el.textContent='Trip slug: '+(t && t.header && t.header.slug || '—'); } }catch(_){ }}
 		// Trip slug helpers
 		function generateTripSlug(){ try{ const t=state.trips[currentTripId()]; if(!t) return; const hdr=t.header=t.header||{}; const date = hdr.date || new Date().toISOString().slice(0,10); const now=new Date(); const h=now.getHours(); const min=String(now.getMinutes()).padStart(2,'0'); const ampm=h>=12?'pm':'am'; const h12=(h%12)||12; let near=(hdr.port||'').split(/[,\s]/).filter(Boolean)[0]||''; if(near) near='Near '+near; const slug=`${date}-${h12}.${min}${ampm}${near}`.replace(/\s+/g,''); hdr.slug=slug; save(); }catch(_){ } }
 		function updateTripSlugDisplay(){ try{ const el=document.getElementById('tripSlug'); const t=state.trips[currentTripId()]; if(el){ el.textContent='Trip slug: '+ (t && t.header && t.header.slug || '—'); } }catch(_){ } }
@@ -1299,461 +1235,80 @@
 
 	// Thermocline & Plan (beta) — lightweight implementation
 	attach('#genThermoPlan','click', async ()=>{
-		// ensure panel visible and navigate to Catch Log tab for context
-		const panel = document.getElementById('thermoPlanPanel'); if(panel) panel.style.display = '';
-		const statusEl = document.getElementById('thermoStatus'); const outEl = document.getElementById('thermoResult');
-		if(statusEl) statusEl.textContent = 'Gathering sources...'; if(outEl) outEl.textContent = '';
-		// switch to Catch Log so the panel is visible
-		try{ location.hash = '#tab-log'; }catch(_){}
-		try{ window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }catch(_){ window.scrollTo(0,0); }
-		try{
-			const t = state.trips[currentTripId()]; if(!t) { if(statusEl) statusEl.textContent='No trip'; return; }
-			const hdr = t.header || {}; const lat = parseFloat(hdr.lastLat||''); const lon = parseFloat(hdr.lastLon||'');
-			if(!isFinite(lat) || !isFinite(lon)) { if(statusEl) statusEl.textContent='No GPS cached. Tap Catch Conditions (GPS) first.'; return; }
-			const stations = (window.__stations||[]).slice();
-			// simple corridor: within 30 km and +/- 10 km cross-track box (approx by distance only here)
-			const near = stations.map(s=>({ s, d: haversineKm(lat,lon, s.lat, s.lon) }))
-				.filter(x=> x.d <= 30)
-				.sort((a,b)=> a.d - b.d)
-				.slice(0, 12)
-				.map(x=> x.s);
-			if(statusEl) statusEl.textContent = `Found ${near.length} sources...`;
-			// fetch profiles best-effort via stationJsonTemplate if present
-			const tpl = (state.settings && state.settings.stationJsonTemplate) ? String(state.settings.stationJsonTemplate).trim() : '';
-			const profiles = [];
-			for(const s of near){
-				let prof = null;
-				if(tpl){
-					const url = tpl.replace('{station}', encodeURIComponent(s.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
-					const u2 = url + (url.includes('?')?'&':'?') + 'prefer=ocean-spec';
-					try{ const r = await fetch(u2, { cache:'no-store' }); if(r.ok){ const js = await r.json(); prof = normalizeProfile(js, s, lat, lon); } }catch(_){ }
-				}
-				if(prof) profiles.push(prof);
-			}
-			if(!profiles.length){ if(statusEl) statusEl.textContent = 'No profile data; estimating from surface and history...';
+    const panel = document.getElementById('thermoPlanPanel'); if(panel) panel.style.display='';
+    const statusEl = document.getElementById('thermoStatus'); const outEl = document.getElementById('thermoResult');
+    if(statusEl) statusEl.textContent='Gathering sources...'; if(outEl) outEl.textContent='';
+    try{ location.hash='#tab-log'; }catch(_){ }
+    try{ window.scrollTo({top:0,left:0,behavior:'auto'}); }catch(_){ window.scrollTo(0,0); }
+    const btn = document.getElementById('genThermoPlan'); const origTxt = btn? btn.textContent:'';
+    if(btn){ btn.disabled=true; btn.textContent='Generating...'; }
+    try{
+        const t = state.trips[currentTripId()]; if(!t){ if(statusEl) statusEl.textContent='No trip'; return; }
+        const hdr = t.header || {}; const lat = parseFloat(hdr.lastLat||''); const lon = parseFloat(hdr.lastLon||'');
+        if(!isFinite(lat)||!isFinite(lon)){ if(statusEl) statusEl.textContent='No GPS cached. Tap Catch Conditions (GPS) first.'; return; }
+        const stations = (window.__stations||[]).slice();
+        // First pass: <=45 km up to 18 stations
+        let near = stations.map(s=>({s,d:haversineKm(lat,lon,s.lat,s.lon)}))
+            .filter(x=> x.d <=45)
+            .sort((a,b)=> a.d - b.d)
+            .slice(0,18)
+            .map(x=> x.s);
+        if(statusEl) statusEl.textContent = `Found ${near.length} nearby (<=45 km)...`;
+        const tpl = (state.settings && state.settings.stationJsonTemplate) ? String(state.settings.stationJsonTemplate).trim(): '';
+        const profiles=[];
+        for(const s of near){
+            if(!tpl) continue;
+            try{
+                const url = tpl.replace('{station}', encodeURIComponent(s.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+                const u2 = url + (url.includes('?')?'&':'?') + 'prefer=ocean-spec&include=profile';
+                const r = await fetch(u2,{cache:'no-store'}); if(r.ok){ const js=await r.json(); const prof=normalizeProfile(js,s,lat,lon); if(prof) profiles.push(prof); }
+            }catch(_){ }
+        }
+        // Fallback expansion if <4 profiles: extend to 65 km up to total 25
+        if(profiles.length < 4){
+            if(statusEl) statusEl.textContent = `Few profiles (${profiles.length}); expanding search...`;
+            const expanded = stations.map(s=>({s,d:haversineKm(lat,lon,s.lat,s.lon)}))
+                .filter(x=> x.d <=65)
+                .sort((a,b)=> a.d - b.d)
+                .slice(0,25)
+                .map(x=> x.s)
+                .filter(s=> !near.find(n=> n.id===s.id));
+            for(const s of expanded){
+                if(!tpl) continue;
+                try{
+                    const url = tpl.replace('{station}', encodeURIComponent(s.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+                    const u2 = url + (url.includes('?')?'&':'?') + 'prefer=ocean-spec&include=profile';
+                    const r = await fetch(u2,{cache:'no-store'}); if(r.ok){ const js=await r.json(); const prof=normalizeProfile(js,s,lat,lon); if(prof) profiles.push(prof); }
+                }catch(_){ }
+            }
+            near = near.concat(expanded);
+        }
+        if(!profiles.length){ if(statusEl) statusEl.textContent = 'No profile data; estimating from surface and history...';
 				// estimate band using surface temp and recent entries
 				const surfF = parseFloat(hdr.surfaceTemp||'');
 				const est = estimateFromHistory(t, isFinite(surfF)? (surfF-32)*5/9 : null);
 				renderPlan(est, outEl, statusEl);
 				return;
 			}
-			if(statusEl) statusEl.textContent = 'Analyzing stations...';
+			if(statusEl) statusEl.textContent = `Analyzing ${profiles.length} station profiles...`;
 			const stationResults = profiles.map(p=> perStationThermo(p));
 			if(statusEl) statusEl.textContent = 'Fusing corridor...';
 			const comp = fuseThermo(stationResults, {lat, lon});
 			renderPlan(comp, outEl, statusEl);
-	}catch(e){ console.warn('thermo plan error', e); if(statusEl) statusEl.textContent = 'Failed to generate plan'; }
+			// persist lastPlanAt
+			try{ t.header.lastPlanAt = Date.now(); save(); indicateSaved(); }catch(_){ }
+		}catch(e){ console.warn('thermo plan error', e); if(statusEl) statusEl.textContent='Failed to generate plan'; }
+		finally{ if(btn){ btn.disabled=false; btn.textContent=origTxt; } }
 	});
 
-	function haversineKm(aLat,aLon,bLat,bLon){ const toR=n=>n*Math.PI/180; const dLat=toR(bLat-aLat), dLon=toR(bLon-aLon); const la=toR(aLat), lb=toR(bLat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*6371*Math.asin(Math.sqrt(h)); }
-	function normalizeProfile(js, station, userLat, userLon){
-		// Accept shapes: { profile:[{z_m,t_c}], when?, ts?, time? }
-		let profile = [];
-		if(js && Array.isArray(js.profile)) profile = js.profile.map(p=>({ z_m: Number(p.z_m), t_c: Number(p.t_c) })).filter(p=> isFinite(p.z_m) && isFinite(p.t_c)).sort((a,b)=> a.z_m-b.z_m);
-		if(!profile.length) return null;
-		const ts = (js && (js.when || js.ts || js.time)) ? Number(js.when || js.ts || js.time) : Date.now();
-		const ageH = Math.abs(Date.now() - ts)/3600000;
-		const isChain = profile.length >= 5; // heuristic
-		return { id: station.id, lat:station.lat, lon:station.lon, ts, age_h: ageH, isChain, profile };
-	}
-	function perStationThermo(p){
-		const sm = smoothProfile(p.profile, 3);
-		const grad = centralGradient(sm);
-		// find peak gradient in plausible band (3..40 m)
-		let peak = { z: NaN, g: -Infinity };
-		for(const g of grad){ if(g.z>=3 && g.z<=40 && g.g>peak.g) peak = g; }
-		const tc_conf = Math.max(0, Math.min(1, peak.g / 0.5)); // 0.5 °C/m ~ strong
-		const iso52 = zAtTemp(sm, 11.1);
-		const iso55 = zAtTemp(sm, 12.8);
-		return { stationId: p.id, lat:p.lat, lon:p.lon, when:p.ts, z_tc_m: peak.z, tc_conf, iso52_m: iso52, iso55_m: iso55, isChain: !!p.isChain };
-	}
-	function smoothProfile(profile, win){ if(!Array.isArray(profile)||!profile.length) return profile||[]; const out=[]; const k=Math.max(1, Math.floor(win)); for(let i=0;i<profile.length;i++){ let sum=0,c=0; for(let j=i-k;j<=i+k;j++){ if(j>=0&&j<profile.length){ sum+=profile[j].t_c; c++; } } out.push({ z: profile[i].z_m, t: sum/c }); } return out; }
-	function centralGradient(sm){ const g=[]; for(let i=1;i<sm.length-1;i++){ const dz = (sm[i+1].z - sm[i-1].z); const dT = (sm[i+1].t - sm[i-1].t); if(dz>0){ g.push({ z: sm[i].z, g: Math.abs(dT/dz) }); } } return g; }
-	function zAtTemp(sm, tc){ for(let i=1;i<sm.length;i++){ const z0=sm[i-1].z, z1=sm[i].z; const t0=sm[i-1].t, t1=sm[i].t; if((t0-tc)*(t1-tc)<=0){ const r = (tc - t0)/((t1 - t0)||1); return z0 + r*(z1 - z0); } } return null; }
-	function fuseThermo(st, ref){
-		const now = Date.now();
-		const rows = [];
-		for(const r of st){ if(!isFinite(r.z_tc_m)) continue; const dKm = haversineKm(ref.lat, ref.lon, r.lat, r.lon); const dtH = Math.abs(now - r.when)/3600000; let w = Math.exp(-dKm/30) * Math.exp(-dtH/6) * (r.isChain?1.15:1.0) * Math.max(0.1, Math.min(1, r.tc_conf||0.5)); rows.push({ w, z:r.z_tc_m, iso52:r.iso52_m, iso55:r.iso55_m }); }
-		if(!rows.length) return { cline_m: null, iso10_m: null, iso12_m: null, sources: 0, conf: 0 };
-		const zAvg = wMean(rows.map(x=>[x.z,x.w])); const zStd = wStd(rows.map(x=>[x.z,x.w]), zAvg);
-		const kept = rows.filter(x=>{ const out = Math.abs(x.z - zAvg) > 2.5*(zStd||1e-6); return !out || x.w>0.6; });
-		const Z = wMean(kept.map(x=>[x.z,x.w]));
-		const I52 = wMean(kept.filter(x=>isFinite(x.iso52)).map(x=>[x.iso52,x.w]));
-		const I55 = wMean(kept.filter(x=>isFinite(x.iso55)).map(x=>[x.iso55,x.w]));
-		const wSum = kept.reduce((s,x)=>s+x.w,0); const conf = Math.max(0, Math.min(1, wSum / (kept.length || 1)));
-		return { cline_m: Z, iso10_m: I52, iso12_m: I55, sources: kept.length, conf };
-	}
-	function wMean(pairs){ if(!pairs.length) return null; let sw=0, s=0; for(const [v,w] of pairs){ if(isFinite(v)&&isFinite(w)){ s+=v*w; sw+=w; } } return sw? s/sw : null; }
-	function wStd(pairs, mean){ if(!pairs.length||!isFinite(mean)) return 0; let sw=0, s=0; for(const [v,w] of pairs){ if(isFinite(v)&&isFinite(w)){ s+=w*Math.pow(v-mean,2); sw+=w; } } return sw? Math.sqrt(s/sw) : 0; }
+	// Corrected estimateFromHistory implementation
 	function estimateFromHistory(trip, sstC){
-		// Use last 6 catches to infer band; fallback from waterDepth/targetDepth
-		const recent = (trip.entries||[]).slice(-6);
-		const depths = recent.map(e=> e.targetDepth || e.waterDepth).filter(n=> Number.isFinite(n));
-		const avg = depths.length? depths.reduce((a,b)=>a+b,0)/depths.length : null;
-		const estCline = avg? Math.max(10, Math.min(120, avg)) : 60;
-		return { cline_m: estCline*0.3048, iso10_m: (estCline-15)*0.3048, iso12_m: (estCline-5)*0.3048, sources: 0 };
+    const recent = (trip.entries||[]).slice(-6);
+    const depths = recent.map(e=> e.targetDepth || e.waterDepth).filter(n=> Number.isFinite(n));
+    const avg = depths.length? depths.reduce((a,b)=>a+b,0)/depths.length : null;
+    const estCline = avg? Math.max(10, Math.min(120, avg)) : 60;
+    return { cline_m: estCline*0.3048, iso10_m: (estCline-15)*0.3048, iso12_m: (estCline-5)*0.3048, sources: 0 };
 	}
-		function renderPlan(comp, outEl, statusEl){
-				const ft = m=> (m==null? '—' : Math.round(m*3.28084));
-				const cl = ft(comp.cline_m), i52 = ft(comp.iso10_m), i55 = ft(comp.iso12_m);
-				const confPct = Math.round((comp.conf||0)*100);
-				const rigs = [
-						{ label:'Deep rigger', depth: i55? i55 : (cl? cl : 60), note:'Flasher/fly or meat (green/UV)' },
-						{ label:'High rigger', depth: i55? Math.max(10, i55-5) : (cl? Math.max(10, cl-10):50), note:'Spoon 5–10 ft above break' },
-						{ label:'Dipsy', depth: cl? Math.max(30, cl-5) : 45, note:'8" paddle + fly' }
-				];
-				const html = `
-					<div>
-						<h3 style="margin:6px 0 6px">Plan for Today</h3>
-						<ul style="padding-left:18px; margin:6px 0">
-							<li style="margin:6px 0">Thermocline ~ <span class="pill depth">${cl||'—'} ft</span></li>
-							<li style="margin:6px 0"><span class="pill temp">52°F</span> @ <span class="pill depth">${i52||'—'} ft</span> • <span class="pill temp">55°F</span> @ <span class="pill depth">${i55||'—'} ft</span></li>
-						</ul>
-						<h3 style="margin:10px 0 6px">Recommended Spread</h3>
-						<ul style="padding-left:18px; margin:6px 0">
-							${rigs.map(r=> `<li style=\"margin:6px 8px\"><span class=\"pill depth\" style=\"margin-right:8px\">${r.depth} ft</span><strong>${r.label}</strong> — ${r.note}</li>`).join('')}
-						</ul>
-						<div class="small" style="margin-top:6px">Sources <b>${comp.sources||0}</b> • Confidence <b>${confPct}%</b></div>
-					</div>`;
-				if(outEl) outEl.innerHTML = html.trim();
-				if(statusEl) statusEl.textContent = 'Plan generated';
-		}
-    
-	// Google Sheets / Drive upload helpers removed (app is local-only per user request)
-		function download(name, content){ const blob=new Blob([content], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
-  
-		attach('#addToHome','click', ()=>{ alert('Add to Home Screen:\n\n• iPhone (Safari): Share ▸ Add to Home Screen.\n• Android (Chrome): ⋮ menu ▸ Add to Home screen.\n\nThis runs offline and saves to your device.'); });
-		function migrate(){ if(!state.dataVersion){ state.dataVersion=3; }
-			// Add ts to entries if missing
-	Object.values(state.trips||{}).forEach(trip=>{ (trip.entries||[]).forEach(e=>{ if(!e.ts){ const ts=computeTs(trip.header, e.time); e.ts=ts; } }); });
-	save(); indicateSaved(); }
-	function initPrefs(){ $('#prefQuickDefault').checked = !!(state.settings && state.settings.quickMode); $('#prefSticky').checked = ((state.settings && state.settings.sticky) !== false); }
-	function savePrefs(){ state.settings = state.settings || {}; state.settings.quickMode = $('#prefQuickDefault').checked; state.settings.sticky = $('#prefSticky').checked; const mj = ($('#marineJsonUrl') && $('#marineJsonUrl').value) ? $('#marineJsonUrl').value.trim() : ''; state.settings.marineJsonUrl = mj; const st = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : ''; state.settings.stationJsonTemplate = st; save(); indicateSaved(); toast('Preferences saved'); applyQuickMode(); }
-	// persist sheet web app settings when saving prefs
-	function loadSheetPrefsIntoForm(){ try{ const el = $('#sheetWebAppUrl'); if(el) el.value = (state.settings && state.settings.sheetWebAppUrl) || ''; }catch(e){} try{ const s = $('#sheetSecret'); if(s) s.value = (state.settings && state.settings.sheetSecret) || ''; }catch(e){} }
-	// update savePrefs to persist new fields
-	const _oldSavePrefs = savePrefs;
-	savePrefs = function(){ _oldSavePrefs(); state.settings.sheetWebAppUrl = ($('#sheetWebAppUrl') && $('#sheetWebAppUrl').value) ? $('#sheetWebAppUrl').value.trim() : ''; state.settings.sheetSecret = ($('#sheetSecret') && $('#sheetSecret').value) ? $('#sheetSecret').value.trim() : ''; save(); indicateSaved(); toast('Preferences saved'); };
-	// reattach handler so the button invokes the updated savePrefs wrapper
-	attach('#savePrefs','click', savePrefs);
-	function applyThermoVisibility(){
-		const btn = document.getElementById('genThermoPlan');
-		const panel = document.getElementById('thermoPlanPanel');
-		if(btn) btn.style.display = '';
-		if(panel) panel.style.display = 'none';
-	}
-		function applyQuickMode(){ const quick = state.settings.quickMode; // Update menu item too
-			const qm=document.getElementById('quickModeMenu'); if(qm) qm.textContent = 'Quick Mode: '+(quick?'On':'Off');
-			const essential = new Set(['time','platform','species','lureType','waterDepth','targetDepth']);
-			$$('#tab-log .grid > div').forEach(div=>{ const input=div.querySelector('input,select,textarea'); if(!input) return; if(essential.has(input.id)) { div.classList.remove('quick-hidden'); } else { if(quick) div.classList.add('quick-hidden'); else div.classList.remove('quick-hidden'); } });
-			// Hide rigger calc <details> in Quick Mode
-			try{ const rc = document.getElementById('riggerCalc'); if(rc){ rc.style.display = quick ? 'none' : ''; } }catch(_){ }
-		}
-		function toast(msg, undo=false){ const el=$('#toast'); el.innerHTML = msg + (undo? ' <button class="btn secondary" id="undoBtn">Undo</button>':''); el.style.display='block'; if(undo){ setTimeout(()=>{ const b=$('#undoBtn'); if(b) b.onclick=()=>{ undoDelete(); }; },0); setTimeout(hideToast, 8000); } else { setTimeout(hideToast, 2000); } }
-		function hideToast(){ const el=$('#toast'); el.style.display='none'; }
-		function showUndo(){ toast('Entry deleted', true); }
-		function init(){ ensureListsSeeded(); fillAllSelects(); listsToTextarea(); refreshTripSelect(); if(!currentTripId() && Object.keys(state.trips).length===0){ const id=uid(); state.trips[id]={id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now()}; save(); refreshTripSelect(); $('#tripSelect').value=id; } migrate(); initPrefs(); // load marine JSON URL into the settings input
-		try{ const el = $('#marineJsonUrl'); if(el) el.value = (state.settings && state.settings.marineJsonUrl) || ''; }catch(e){}
-	try{ const st = $('#stationJsonTemplate'); if(st) st.value = (state.settings && state.settings.stationJsonTemplate) || 'https://blfl-ndbc-proxy.elliottdanielp.workers.dev/stations/{station}.json'; }catch(e){}
-		// load sheet prefs
-		try{ loadSheetPrefsIntoForm(); }catch(e){}
-				// load stations list (for nearest NDBC station lookup)
-				try{
-					fetch('stations.json', { cache: 'no-store' }).then(r=>r.json()).then(js=>{ window.__stations = js || [] }).catch(()=>{ window.__stations = []; });
-				}catch(e){ window.__stations = []; }
-			loadHeaderIntoForm(); applyQuickMode(); applyThermoVisibility(); updateLogBadge();
-			// gate fields until first conditions fetch
-			try{ const setup=document.getElementById('tab-setup'); if(setup) setup.classList.add('pending-conditions'); }catch(_){ }
-			updateTripSlugDisplay();
-			// hydrate Marine Snapshot UI from header if present
-			try{
-				const t = state.trips[currentTripId()]; const hdr = t && t.header || {};
-				if(hdr && hdr.marineSnapshot){ renderMarineSnapshot(hdr.marineSnapshot, document.getElementById('marineSnapResult'), document.getElementById('marineSnapStatus')); }
-				// auto-run snapshot if we have cached GPS and no snapshot yet
-				const lat = parseFloat(hdr.lastLat||''); const lon = parseFloat(hdr.lastLon||'');
-				if(isTripActive() && isFinite(lat) && isFinite(lon) && !(hdr && hdr.marineSnapshot)){
-					// best-effort, don't block init
-					runMarineSnapshot(lat, lon).catch(()=>{});
-				}
-			}catch(_){ }
-		}
-	attach('#prefSticky','change', ()=>{ /* immediate reflection not needed */ });
-	attach('#prefQuickDefault','change', ()=>{ /* just state toggle on save */ });
-	// Conditional lure field visibility (attractor/fly only for Flasher/Fly & Meat Rig)
-	(function(){ const lt=document.getElementById('lureType'); const aWrap=document.getElementById('attractor')?.parentElement; const fWrap=document.getElementById('flyMeat')?.parentElement; function upd(){ const v=lt?lt.value:''; const show = (v==='Flasher/Fly'||v==='Meat Rig'); if(aWrap) aWrap.style.display = show? '' : 'none'; if(fWrap) fWrap.style.display = show? '' : 'none'; if(!show){ if(document.getElementById('attractor')) document.getElementById('attractor').value=''; if(document.getElementById('flyMeat')) document.getElementById('flyMeat').value=''; } } if(lt){ lt.addEventListener('change', upd); upd(); } })();
-		attach('#quickToggle','dblclick', ()=>{ // quick clear validation marks
-			$$('#tab-log .invalid').forEach(el=>el.classList.remove('invalid')); });
-		init();
-		applyActiveTripGating();
-	// Download button triggers the Catch Conditions flow (useful reminder)
-	// Use guarded attaches for photo input, clear photo and downloadConditions
-	attach('#photoInput', 'change', async () => { const input = document.querySelector('#photoInput'); const f = (input && input.files && input.files[0]); if(!f){ pendingPhotoDataURL=''; if(photoPreview) { photoPreview.classList.add('hide'); photoPreview.src=''; } return; } try{ pendingPhotoDataURL = await fileToDataURLResized(f); if(photoPreview){ photoPreview.src = pendingPhotoDataURL; photoPreview.classList.remove('hide'); } } catch(err){ alert('Photo error: '+err.message); } });
-	attach('#clearPhoto', 'click', ()=>{ pendingPhotoDataURL=''; const input = document.querySelector('#photoInput'); if(input) input.value=''; if(photoPreview){ photoPreview.classList.add('hide'); photoPreview.src=''; } });
-	// Test station template fetch button (settings area)
-	attach('#testStationJson','click', async ()=>{
-		try{
-			const tpl = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : '';
-			if(!tpl){ toast('Set station JSON template first in Preferences'); return; }
-			// pick nearest station if available
-			const stations = window.__stations || [];
-			let nearest = stations[0] || null;
-			if(stations.length && ('geolocation' in navigator)){
-				navigator.geolocation.getCurrentPosition(async pos=>{
-					const lat = pos.coords.latitude, lon = pos.coords.longitude;
-					const toR = n => n * Math.PI / 180;
-					const hav = (a,b)=>{ const R=6371; const dLat=toR(b.lat-a.lat); const dLon=toR(b.lon-a.lon); const la=toR(a.lat), lb=toR(b.lat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
-					let best=null, bestD=Infinity; stations.forEach(s=>{ const d = hav({lat,lon}, {lat:s.lat, lon:s.lon}); if(d<bestD){ bestD=d; best=s; } }); if(best) nearest = best;
-					const url = tpl.replace('{station}', encodeURIComponent(nearest.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
-					try{
-						const r = await fetch(url, { cache: 'no-store' }); if(!r.ok){ toast('Fetch failed: '+r.status); console.warn('station fetch failed', r.status, url); return; } const js = await r.json(); toast('Station JSON fetched OK'); console.log('station JSON', js);
-					}catch(e){ toast('Fetch error (see console)'); console.warn('station fetch error', e); }
-				}, err=>{ toast('Geolocation failed: '+(err && err.message)); console.warn('geolocation failed', err); });
-			} else {
-				try{
-					const url = tpl.replace('{station}', encodeURIComponent(nearest && nearest.id || ''));
-					const r = await fetch(url, { cache: 'no-store' }); if(!r.ok){ toast('Fetch failed: '+r.status); console.warn('station fetch failed', r.status, url); return; } const js = await r.json(); toast('Station JSON fetched OK'); console.log('station JSON', js);
-				}catch(e){ toast('Fetch error (see console)'); console.warn('station fetch error', e); }
-			}
-		}catch(e){ toast('Test failed'); console.warn('testStationJson failed', e); }
-	});
-	attach('#debugStationJson','click', async ()=>{
-		try{
-			const tpl = ($('#stationJsonTemplate') && $('#stationJsonTemplate').value) ? $('#stationJsonTemplate').value.trim() : '';
-			if(!tpl){ toast('Set station JSON template first in Preferences'); return; }
-			const stations = window.__stations || [];
-			let nearest = stations[0] || null;
-			if(stations.length && ('geolocation' in navigator)){
-				navigator.geolocation.getCurrentPosition(async pos=>{
-					const lat = pos.coords.latitude, lon = pos.coords.longitude;
-					const toR = n => n * Math.PI / 180;
-					const hav = (a,b)=>{ const R=6371; const dLat=toR(b.lat-a.lat); const dLon=toR(b.lon-a.lon); const la=toR(a.lat), lb=toR(b.lat); const h = Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lb)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
-					let best=null, bestD=Infinity; stations.forEach(s=>{ const d = hav({lat,lon}, {lat:s.lat, lon:s.lon}); if(d<bestD){ bestD=d; best=s; } }); if(best) nearest = best;
-					const url = tpl.replace('{station}', encodeURIComponent(nearest.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
-					const debugUrl = url + (url.includes('?')? '&' : '?') + 'debug=1&prefer=ocean-spec';
-					try{
-						const r = await fetch(debugUrl, { cache: 'no-store' });
-						const js = await r.json();
-						console.log('debug station response', js);
-						if(js && js.raw){ toast('Raw data returned; see console'); } else if(js && (js.sstC!==undefined || js.waveM!==undefined)){ toast('Parsed station data returned; see console'); } else { toast('No usable data; see console'); }
-					}catch(e){ toast('Debug fetch failed (see console)'); console.warn('debug fetch error', e); }
-				}, err=>{ toast('Geolocation failed: '+(err && err.message)); console.warn('geolocation failed', err); });
-			} else {
-				try{
-					const url = tpl.replace('{station}', encodeURIComponent(nearest && nearest.id || ''));
-					const debugUrl = url + (url.includes('?')? '&' : '?') + 'debug=1&prefer=ocean-spec';
-					const r = await fetch(debugUrl, { cache: 'no-store' });
-					const js = await r.json();
-					console.log('debug station response', js);
-					if(js && js.raw){ toast('Raw data returned; see console'); } else if(js && (js.sstC!==undefined || js.waveM!==undefined)){ toast('Parsed station data returned; see console'); } else { toast('No usable data; see console'); }
-				}catch(e){ toast('Debug fetch failed (see console)'); console.warn('debug fetch error', e); }
-			}
-		}catch(e){ toast('Debug failed'); console.warn('debugStationJson failed', e); }
-	});
-	// removed Download Conditions button
-	function defaults(){ return { Platform:["Downrigger","Dipsy","Copper","Leadcore","Planer Board","Flatline"], LineType:["Wire","Braid","Mono","Fluorocarbon","Copper","Leadcore"], LureType:["Spoon","Plug","Flasher/Fly","Meat Rig","Spin-n-Glow","Other"], LureColors:["NBK","Blue Dolphin","UV Blue/Green","Glow Green","Glow White","Orange/Silver","Green Dolphin","UV Stud","Blue Bubble","Chrome/Green","Chrome/Blue","Bloody Nose"], Attractors:["8\" White Crush","8\" UV Stud","11\" Chrome-Green","11\" White Paddle","8\" Blue Bubble","8\" Green Dot"], FlyMeat:["Blue Fly","Green Fly","Blue/Green Fly","Green Meat","Blue Meat","UV Fly"], Species:["Chinook (King)","Coho","Steelhead","Lake Trout","Brown Trout","Other"], TrollDirection:["N","NE","E","SE","S","SW","W","NW"], Clouds:["Clear","Partly","Overcast","Fog"] }; }
-	function ensureListsSeeded(){ const d=defaults(); state.lists = state.lists || {}; const keys=["Platform","LineType","LureType","LureColors","Attractors","FlyMeat","Species","TrollDirection","Clouds"]; keys.forEach(k=>{ if(!Array.isArray(state.lists[k]) || !state.lists[k].length){ state.lists[k] = d[k].slice(); } }); }
-	function listsToTextarea(){ ensureListsSeeded(); $('#listPlatform').value = state.lists.Platform.join('\n'); $('#listLineType').value = state.lists.LineType.join('\n'); $('#listLureType').value = state.lists.LureType.join('\n'); $('#listLureColors').value = state.lists.LureColors.join('\n'); $('#listAttractors').value = state.lists.Attractors.join('\n'); $('#listFlyMeat').value = state.lists.FlyMeat.join('\n'); $('#listSpecies').value = state.lists.Species.join('\n'); $('#listTrollDir').value = state.lists.TrollDirection.join('\n'); $('#listClouds').value = state.lists.Clouds.join('\n'); }
-	function textareaToLists(){ const split=t=>t.split('\n').map(s=>s.trim()).filter(Boolean); state.lists = state.lists || {}; state.lists.Platform=split($('#listPlatform').value); state.lists.LineType=split($('#listLineType').value); state.lists.LureType=split($('#listLureType').value); state.lists.LureColors=split($('#listLureColors').value); state.lists.Attractors=split($('#listAttractors').value); state.lists.FlyMeat=split($('#listFlyMeat').value); state.lists.Species=split($('#listSpecies').value); state.lists.TrollDirection=split($('#listTrollDir').value); state.lists.Clouds=split($('#listClouds').value); save(); indicateSaved(); fillAllSelects(); }
-
-	// Log Bite popup behavior
-	(function(){
-		const btn = document.getElementById('logBiteBtn');
-		const menu = document.getElementById('logBiteMenu');
-		if(!btn || !menu) return;
-		let open=false;
-		function show(){ menu.hidden=false; requestAnimationFrame(()=> menu.classList.add('open')); btn.setAttribute('aria-expanded','true'); document.addEventListener('click', onDoc); open=true; }
-		function hide(){ menu.classList.remove('open'); setTimeout(()=>{ menu.hidden=true; }, 120); btn.setAttribute('aria-expanded','false'); document.removeEventListener('click', onDoc); open=false; }
-		function onDoc(e){ if(!menu.contains(e.target) && e.target!==btn) hide(); }
-		btn.addEventListener('click', (e)=>{ e.stopPropagation(); open? hide(): show(); });
-		Array.from(menu.querySelectorAll('[data-bite]')).forEach(el=> el.addEventListener('click', ()=>{ const plat = el.getAttribute('data-bite'); hide(); addBite(plat||''); }));
-	})();
-
-	async function addBite(platform){ const id = ensureTrip(); const t = state.trips[id]; const header = t.header || {}; const now = new Date(); const timeStr = now.toTimeString().slice(0,5); const entry={ id: uid(), time: timeStr, platform: platform, trollDir: readVal('#trollDir')||'', waterDepth: num(readVal('#waterDepth')), targetDepth: num(readVal('#targetDepth')), lureType: readVal('#lureType')||'', lureBrand: readVal('#lureBrand')||'', lureSize: readVal('#lureSize')||'', lureColor: readVal('#lureColor')||'', attractor: readVal('#attractor')||'', flyMeat: readVal('#flyMeat')||'', speedBall: num(readVal('#speedBall')), sog: num(readVal('#sog')), species: readVal('#species')||'', notes: (readVal('#notes')? (readVal('#notes')+' • ') : '') + 'Bite', ts: computeTs(header, timeStr), photo: false, isBite:true };
-		t.entries.push(entry); t.updatedAt=Date.now(); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge(); toast('Bite logged'); setTimeout(hideToast, 1200); }
-	// Manage Data actions — Clear current, Clear ALL, Delete trip
-	attach('#clearTrip','click', async ()=>{
-		const id = currentTripId(); if(!id) return alert('No trip selected');
-		const t = state.trips[id]; if(!t) return;
-		if(!confirm('Clear all entries for this trip? This cannot be undone.')) return;
-		try{ for(const e of t.entries){ if(e.photo){ try{ await deletePhoto(e.id); }catch(_){} } } }catch(_){ }
-		t.entries = [];
-		save(); indicateSaved();
-		renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge();
-		toast('Trip entries cleared'); setTimeout(hideToast, 1600);
-	});
-
-	attach('#clearAll','click', async ()=>{
-		if(!confirm('Clear ALL trips and photos on this device? This cannot be undone.')) return;
-		// Clear photos store completely
-		try{
-			const db = await openDB();
-			await new Promise((res,rej)=>{ const tx=db.transaction('photos','readwrite'); const st=tx.objectStore('photos'); st.clear(); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); });
-		}catch(_){ }
-		state.trips = {};
-		save(); refreshTripSelect();
-		// Create a fresh blank trip to keep UI stable
-		ensureTrip(); loadHeaderIntoForm();
-		renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge();
-		toast('All trips cleared'); setTimeout(hideToast, 1600);
-	});
-
-	attach('#deleteTrip','click', async ()=>{
-		const id = currentTripId(); if(!id) return alert('No trip selected');
-		const t = state.trips[id]; if(!t) return;
-		if(!confirm('Delete this trip and its photos? This cannot be undone.')) return;
-		try{ for(const e of t.entries){ if(e.photo){ try{ await deletePhoto(e.id); }catch(_){} } } }catch(_){ }
-		delete state.trips[id];
-		save(); refreshTripSelect();
-		const keys = Object.keys(state.trips);
-		if(keys.length){ $('#tripSelect').value = keys[0]; } else { ensureTrip(); }
-		loadHeaderIntoForm(); indicateSaved();
-		renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge();
-		toast('Trip deleted'); setTimeout(hideToast, 1600);
-	});
-		// Register service worker for offline support (if available)
-		if ('serviceWorker' in navigator) {
-			// use relative path so it works on GitHub Pages project pages
-			navigator.serviceWorker.register('service-worker.js').then(reg => {
-				console.log('ServiceWorker registered:', reg.scope);
-			}).catch(err => {
-				console.warn('ServiceWorker registration failed:', err);
-			});
-		}
-
-
-	// Header menu (dedicated icon button) — focus trap, Escape, outside click
-	(function(){
-		const toggle = document.getElementById('navToggleRR');
-		const menu = document.getElementById('navMenuRR');
-		if(!toggle || !menu) return;
-		const links = Array.from(menu.querySelectorAll('a,button'));
-		function updateActive(){ const h = location.hash || '#tab-setup'; links.forEach(a=>{ const href=a.getAttribute('href')||''; const is=href && href.startsWith('#') && href===h; if(is) a.setAttribute('aria-current','true'); else a.removeAttribute('aria-current'); }); }
-		window.addEventListener('hashchange', updateActive); updateActive();
-		let lastFocused=null;
-		function open(){ lastFocused=document.activeElement; menu.hidden=false; requestAnimationFrame(()=> menu.classList.add('open')); toggle.setAttribute('aria-expanded','true'); const f=menu.querySelector('a,button'); if(f) f.focus(); document.addEventListener('click', onDoc); document.addEventListener('keydown', onKey); }
-		function close(){ menu.classList.remove('open'); setTimeout(()=>{ menu.hidden=true; }, 120); toggle.setAttribute('aria-expanded','false'); document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey); if(lastFocused) lastFocused.focus(); lastFocused=null; }
-		function onDoc(e){ if(!menu.contains(e.target) && e.target!==toggle) close(); }
-		function onKey(e){ if(e.key==='Escape'){ close(); return; } if(e.key==='Tab' && !menu.hidden){ const f=Array.from(menu.querySelectorAll('a,button')).filter(el=>!el.disabled); if(!f.length) return; const first=f[0], last=f[f.length-1]; if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } } }
-		toggle.addEventListener('click', e=>{ e.stopPropagation(); if(menu.hidden) open(); else close(); });
-		links.forEach(a=> a.addEventListener('click', ()=> setTimeout(close, 50)));
-	})();
-
-// Downrigger cannonball speed calculator (simplified): show resultant mph and auto-fill Speed @ ball
-(function(){
-	function calc(){
-		const sog = parseFloat(document.getElementById('riggerSog')?.value || '0'); // mph surface / GPS
-		const weightLb = parseFloat(document.getElementById('riggerWeight')?.value || '0');
-		const depthFt = parseFloat(document.getElementById('riggerDepth')?.value || '0');
-		const cableOutFt = parseFloat(document.getElementById('riggerCableOut')?.value || '0');
-		const shape = document.getElementById('riggerBallShape')?.value || 'sphere';
-		let diaIn = parseFloat(document.getElementById('riggerBallDia')?.value || '0');
-		const cableDiaIn = parseFloat(document.getElementById('riggerCableDia')?.value || '0.037');
-		const waterDensityKg = parseFloat(document.getElementById('riggerWaterDensity')?.value || '1000'); // kg/m3
-		const cdCable = parseFloat(document.getElementById('riggerCdCable')?.value || '1.2');
-		if(!isFinite(sog) || !isFinite(weightLb) || sog<=0 || weightLb<=0){ return; }
-
-		// Convert units to SI
-		const g = 9.80665;
-		const weightN = weightLb * 0.45359237 * g;
-		// Approximate diameter from weight if not given: assume lead density ~ 11340 kg/m3, sphere
-		if(!diaIn || diaIn<=0){
-			const rhoLead = 11340; // kg/m3
-			const vol = (weightLb * 0.45359237) / rhoLead; // m3
-			const d = Math.pow((6*vol/Math.PI), 1/3); // sphere diameter m
-			diaIn = d * 39.3701; // m->in
-		}
-		const diaM = diaIn * 0.0254;
-		const areaBall = Math.PI * (diaM*diaM)/4; // frontal area
-		// Shape Cd assumptions
-		const cdMap = { sphere:0.47, torpedo:0.20, pancake:0.70 };
-		const cdBall = cdMap[shape] ?? 0.47;
-		const sogMs = sog * 0.44704; // mph -> m/s
-
-		// Blowback angle estimation:
-		// If cableOut & depth provided: cos(theta) = depth / cableOut
-		let theta = 0; // radians (angle from vertical)
-		if(isFinite(depthFt) && depthFt>0 && isFinite(cableOutFt) && cableOutFt>depthFt){
-			theta = Math.acos( (depthFt / cableOutFt) );
-		}
-		// Drag components: Ball drag + cable drag (approximated as cylinder projected area * Cd).
-		// Cable projected area relative to flow ~ length * diameter.
-		const cableDiaM = (cableDiaIn>0? cableDiaIn:0.037) * 0.0254;
-		const cableLenM = (isFinite(cableOutFt) && cableOutFt>0 ? cableOutFt : depthFt) * 0.3048;
-		const cableArea = cableLenM * cableDiaM; // projected rectangle approximation
-
-		// We want speed at ball (v_ball). True water flow at depth may differ from SOG due to currents.
-		// We approximate v_ball = SOG * cos(theta_currentDiff) - but we solve by equilibrium:
-		// Horizontal drag = weight * tan(theta). We'll iterate velocity to match angle if angle not supplied.
-
-		function totalDrag(v){
-			const dyn = 0.5 * waterDensityKg * v*v;
-			const dragBall = dyn * cdBall * areaBall;
-			const dragCable = dyn * cdCable * cableArea;
-			return dragBall + dragCable; // N
-		}
-
-		// If no explicit angle (no cableOut), infer angle from drag balance: tan(theta) = Drag / (Weight - buoyancy)
-		// Buoyancy small vs weight (lead); approximate netWeight ~ weightN * 0.98
-		const netWeight = weightN * 0.98;
-
-		if(!(isFinite(cableOutFt) && cableOutFt>depthFt && depthFt>0)){
-			// Solve for v such that drag / netWeight = tan(theta) where theta determined by depth vs (depth + blowback)
-			// Simpler: iterate to stable v where horizontal deflection produces a reasonable implicit angle.
-			// We'll assume small angle approximation initially and refine.
-			let v = sogMs; // start with surface speed
-			for(let i=0;i<12;i++){
-				const D = totalDrag(v);
-				const tanT = D / netWeight;
-				const newTheta = Math.atan(tanT);
-				// Effective ball speed relative to water slightly reduced by vertical component; treat v horizontal ~ v * cos(newTheta/2)
-				const vHoriz = sogMs * Math.cos(newTheta*0.3); // heuristic damping
-				const blend = 0.55;
-				v = v * (1-blend) + vHoriz * blend;
-				theta = newTheta;
-			}
-		} else {
-			// Angle provided; estimate ball speed by reducing SOG due to vertical tension component
-			// We'll iterate v so that drag matches netWeight * tan(thetaGiven)
-			const targetTan = Math.tan(theta);
-			let v = sogMs;
-			for(let i=0;i<20;i++){
-				const D = totalDrag(v);
-				const err = (D / netWeight) - targetTan;
-				v = Math.max(0, v - err * 0.25 * (v>0?1:0));
-			}
-			// update theta solved vs provided for display
-		}
-
-		// Final velocity at ball approximated as horizontal component of v adjusted by shape (streamlined retains more speed)
-		// We'll recompute drag-based stable speed one more pass
-		let vBall = sogMs * Math.cos(theta*0.15);
-		// refine using drag difference
-		const Dfinal = totalDrag(vBall);
-		const tanFinal = Dfinal / netWeight;
-		const thetaFinal = Math.atan(tanFinal);
-		const mphBall = vBall * 2.23694;
-
-		const blowbackFt = (isFinite(cableOutFt) && cableOutFt>0 && isFinite(depthFt) && depthFt>0) ? Math.sqrt(Math.max(0, cableOutFt*cableOutFt - depthFt*depthFt)) : (depthFt * Math.tan(thetaFinal));
-		const deg = (thetaFinal * 180/Math.PI).toFixed(1);
-
-		const el = document.getElementById('riggerResult');
-		if(el){
-			el.innerHTML = `<b>Speed @ ball: ${mphBall.toFixed(2)} mph</b><br>`+
-				`<span class=hint>Angle: ${deg}° • Blowback ≈ ${blowbackFt.toFixed(1)} ft • SOG ${sog.toFixed(2)} mph<br>`+
-				`Cd(ball) ${cdBall} • Cd(cable) ${cdCable} • Dia ${diaIn.toFixed(2)} in • Est model (beta)</span>`;
-		}
-		try{ const sb = document.getElementById('speedBall'); if(sb){ sb.value = mphBall.toFixed(2); sb.classList.add('auto-filled'); setTimeout(()=> sb.classList.remove('auto-filled'), 2500); } }catch(_){ }
-		// Also overwrite SOG field (always latest calculation)
-		try{ const sogEl=document.getElementById('sog'); if(sogEl){ sogEl.value = sog.toFixed(2); sogEl.classList.add('auto-filled'); setTimeout(()=> sogEl.classList.remove('auto-filled'), 2500); } }catch(_){ }
-	}
-	const btn = document.getElementById('calcRiggerBtn');
-	if(btn) btn.addEventListener('click', calc);
-	const rst = document.getElementById('calcRiggerReset');
-	if(rst) rst.addEventListener('click', ()=>{
-		['riggerSog','riggerWeight','riggerDepth','riggerCableOut','riggerBallDia'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-		const out=document.getElementById('riggerResult'); if(out) out.textContent='';
-	});
-})();
 	</script>
 </body>
 </html>
