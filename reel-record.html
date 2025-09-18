@@ -460,6 +460,41 @@
 	function hideToast(){ const t=document.getElementById('toast'); if(!t) return; t.style.opacity='0'; setTimeout(()=>{ if(t.style.opacity==='0') t.style.display='none'; }, 350); }
 	function showUndo(){ toast('Entry deleted', { label:'Undo', onclick:()=>{ try{ undoDelete(); }catch(_){ } } }); }
 	function download(filename, data){ try{ const blob=new Blob([data], {type:'text/plain'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0); }catch(e){ console.warn('download failed', e); } }
+	// Reusable catch conditions flow (GPS + weather + marine + nearest station)
+	async function runCatchConditionsGPS(){
+		const btn = document.querySelector('#fetchConditions');
+		const orig = btn ? btn.textContent : '';
+		if(btn){ btn.disabled = true; btn.textContent = 'Fetching...'; }
+		try{
+			const id = ensureTrip();
+			const trip = state.trips[id]; trip.header = trip.header || {};
+			// reuse cached GPS if fresh (<30 min)
+			const freshMs = 30*60*1000;
+			const hasFresh = trip.header.conditionsCachedAt && (Date.now() - trip.header.conditionsCachedAt) < freshMs;
+			let lat = parseFloat(trip.header.lastLat||'');
+			let lon = parseFloat(trip.header.lastLon||'');
+			if(!(hasFresh && Number.isFinite(lat) && Number.isFinite(lon))){
+				if(!('geolocation' in navigator)) { toast('GPS not supported'); return; }
+				const pos = await new Promise((resolve,reject)=>{ navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy:false, timeout:15000 }); });
+				lat = pos.coords.latitude; lon = pos.coords.longitude;
+				trip.header.lastLat = lat.toFixed(5); trip.header.lastLon = lon.toFixed(5); trip.header.conditionsCachedAt = Date.now();
+			}
+			// Fill date/start if blank
+			try{ const dEl=document.getElementById('tripDate'); if(dEl && !dEl.value) dEl.value=new Date().toISOString().slice(0,10); const stEl=document.getElementById('startTime'); if(stEl && !stEl.value) stEl.value=new Date().toTimeString().slice(0,5); }catch(_){ }
+			// Weather
+			try{ const w = await fetchOpenMeteo(lat, lon); if(w){ if(isFinite(w.tempC)) document.querySelector('#airTemp').value = Math.round((w.tempC*9/5)+32); if(isFinite(w.windKmh)&&isFinite(w.windDeg)) document.querySelector('#wind').value = degToCompass(w.windDeg)+' '+Math.round(w.windKmh/1.852); if(isFinite(w.cloudPct)) document.querySelector('#clouds').value = (w.cloudPct<15?'Clear':(w.cloudPct<55?'Partly':'Overcast')); } }catch(e){ console.warn('weather fetch failed', e); }
+			// Marine
+			try{ const m = await fetchMarineNearest(lat, lon); if(m){ if(isFinite(m.sstC)) document.querySelector('#surfaceTemp').value = Math.round((m.sstC*9/5)+32); if(isFinite(m.waveM)) document.querySelector('#waves').value = (m.waveM*3.28084).toFixed(1); } }catch(e){ console.warn('marine fetch failed', e); }
+			// Nearest station + port enrich
+			try{ const stations = window.__stations || []; if(stations.length){ let best=null,bestD=Infinity; for(const s of stations){ const d = haversineKm(lat, lon, s.lat, s.lon); if(d<bestD){ bestD=d; best=s; } } const stEl=document.getElementById('conditionsStation'); if(stEl && best) stEl.textContent = `${best.id} (${bestD.toFixed(1)} km)`; const portEl=document.getElementById('port'); if(portEl && !portEl.value){ const loc = best && (best.name||best.id); portEl.value = best? `${best.id} (${loc}) - ${bestD.toFixed(1)} km` : `${lat.toFixed(2)}, ${lon.toFixed(2)}`; } } }catch(e){ console.warn('station nearest failed', e); }
+			// Ungate + slug + persist
+			try{ document.getElementById('tab-setup')?.classList.remove('pending-conditions'); }catch(_){ }
+			try{ generateTripSlug(); updateTripSlugDisplay(); refreshTripSelect(); }catch(_){ }
+			trip.updatedAt = Date.now(); save(); indicateSaved();
+			const cc=document.getElementById('conditionsCached'); if(cc) cc.textContent = new Date().toLocaleTimeString();
+		}catch(err){ console.warn('runCatchConditionsGPS failed', err); toast('Location failed'); }
+		finally{ if(btn){ btn.disabled=false; btn.textContent=orig; } }
+	}
 	// -------------------------------------------------------------------------
 	// Helper for older browsers: attach event only if element exists (avoids optional-chaining syntax)
 	function attach(selector, evt, handler) { const el = document.querySelector(selector); if (el) el.addEventListener(evt, handler); }
@@ -468,73 +503,14 @@
 				// Prevent browser from restoring previous scroll position on hash changes
 				try{ if('scrollRestoration' in history) history.scrollRestoration = 'manual'; }catch(_){}
 			// All other event listeners below (move all listeners inside this block)
-	attach('#fetchConditions', 'click', async () => {
-		const btn = document.querySelector('#fetchConditions');
-		const orig = btn ? btn.textContent : '';
-		if(btn){ btn.disabled = true; btn.textContent = 'Fetching...'; }
-		try{
-			if(!('geolocation' in navigator)) { toast('GPS not supported'); return; }
-			// Request position (high accuracy not required, faster fix desirable)
-			await new Promise((resolve, reject)=>{
-				navigator.geolocation.getCurrentPosition(pos=> resolve(pos), err=> reject(err), { enableHighAccuracy:false, timeout:15000 });
-			}).then(async (pos)=>{
-				const { latitude:lat, longitude:lon } = pos.coords;
-				const id = ensureTrip();
-				const trip = state.trips[id]; trip.header = trip.header || {};
-				trip.header.lastLat = lat.toFixed(5); trip.header.lastLon = lon.toFixed(5); trip.header.conditionsCachedAt = Date.now();
-				// If date/start empty, fill them now (user tapped GPS first)
-				try{
-					const dEl=document.getElementById('tripDate'); if(dEl && !dEl.value){ dEl.value = new Date().toISOString().slice(0,10); }
-					const stEl=document.getElementById('startTime'); if(stEl && !stEl.value){ stEl.value = new Date().toTimeString().slice(0,5); }
-				}catch(_){ }
-				// Weather (air, wind, clouds)
-				try{
-					const w = await fetchOpenMeteo(lat, lon);
-					if(w){
-						if(isFinite(w.tempC)) $('#airTemp').value = Math.round((w.tempC*9/5)+32);
-						if(isFinite(w.windKmh) && isFinite(w.windDeg)) $('#wind').value = degToCompass(w.windDeg)+' '+Math.round(w.windKmh/1.852); // km/h -> knots approx
-						if(isFinite(w.cloudPct)) $('#clouds').value = (function(p){ if(p<15) return 'Clear'; if(p<55) return 'Partly'; return 'Overcast'; })(w.cloudPct);
-					}
-				}catch(e){ console.warn('weather fetch failed', e); }
-				// Marine (surface temp, waves)
-				try{
-					const m = await fetchMarineNearest(lat, lon);
-					if(m){
-						if(isFinite(m.sstC)) $('#surfaceTemp').value = Math.round((m.sstC*9/5)+32);
-						if(isFinite(m.waveM)) $('#waves').value = (m.waveM*3.28084).toFixed(1);
-					}
-				}catch(e){ console.warn('marine fetch failed', e); }
-				// Nearest station (if station list loaded) & enrich port field
-				try{
-					const stations = window.__stations || [];
-					if(stations.length){
-						let best=null, bestD=Infinity;
-						for(const s of stations){ const d = haversineKm(lat, lon, s.lat, s.lon); if(d<bestD){ bestD=d; best=s; } }
-						if(best){
-							const stEl = document.getElementById('conditionsStation'); if(stEl) stEl.textContent = `${best.id} (${bestD.toFixed(1)} km)`;
-							// build port description if empty
-							const portEl=document.getElementById('port');
-							if(portEl && !portEl.value){
-								const loc = best.name || best.id;
-								portEl.value = `${best.id} (${loc}) - ${bestD.toFixed(1)} km`;
-							}
-						}
-					}
-				}catch(e){ console.warn('station nearest failed', e); }
-				$('#conditionsCached').textContent = new Date().toLocaleTimeString();
-				// Ungate setup form
-				try{ const setup=document.getElementById('tab-setup'); if(setup) setup.classList.remove('pending-conditions'); }catch(_){ }
-				// Generate slug now that we likely have key pieces
-				try{ generateTripSlug(); updateTripSlugDisplay(); refreshTripSelect(); }catch(_){ }
-				// Persist header updates
-				trip.updatedAt = Date.now(); save(); indicateSaved();
-			});
-		}catch(err){ console.warn('GPS fetchConditions failed', err); toast('Location failed'); }
-		finally{
-			if(btn){ btn.disabled=false; btn.textContent = orig; }
-		}
+	attach('#fetchConditions', 'click', async () => { await runCatchConditionsGPS(); });
+	attach('#saveTrip', 'click', async () => {
+		await runCatchConditionsGPS();
+		saveHeader();
+		try{ const panel=document.getElementById('thermoPlanPanel'); if(panel) panel.style.display=''; }catch(_){ }
+		try{ const genBtn=document.getElementById('genThermoPlan'); if(genBtn) genBtn.click(); }catch(_){ }
+		aggressiveScrollTop();
 	});
-	attach('#saveTrip', 'click', saveHeader);
 	// Regenerate slug when date/startTime/port change
 	['#tripDate','#startTime','#port'].forEach(sel=> attach(sel,'change', ()=>{
 		const id=currentTripId(); if(!id) return; const t=state.trips[id]; if(!t) return; const h=t.header=t.header||{};
@@ -546,6 +522,22 @@
 	// Lure conditional visibility logic
 	function updateLureVisibility(){ try{ const lt=$('#lureType')?$('#lureType').value:''; const attr=$('#attractor')&&$('#attractor').closest('div'); const fly=$('#flyMeat')&&$('#flyMeat').closest('div'); if(!attr||!fly) return; const hideAll=(lt==='Spoon'||lt==='Plug'||lt==='Other'); if(hideAll){ attr.style.display='none'; fly.style.display='none'; return; } const need=(lt==='Flasher/Fly'||lt==='Meat Rig'); attr.style.display = need? '' : 'none'; fly.style.display = need? '' : 'none'; }catch(_){ } }
 	attach('#lureType','change', updateLureVisibility); setTimeout(updateLureVisibility, 300);
+	// Optional safety: ensure genThermoPlan click reveals panel & scrolls
+	(function wireThermoPlanOnce(){
+		if(window._genThermoPlanWired) return; window._genThermoPlanWired=true;
+		attach('#genThermoPlan','click', async ()=>{
+			try{
+				const t=state.trips[currentTripId()]; const hdr=t && t.header || {};
+				const lat = parseFloat(hdr.lastLat||''); const lon = parseFloat(hdr.lastLon||'');
+				if(!Number.isFinite(lat) || !Number.isFinite(lon)){ toast('Run Catch Conditions first'); return; }
+				const sstC = hdr.surfaceTemp ? (Number(hdr.surfaceTemp)-32)*5/9 : null;
+				const plan = estimateFromHistory(t, sstC);
+				if(t){ t.header.lastPlanAt = Date.now(); save(); }
+				const panel=document.getElementById('thermoPlanPanel'); const out=document.getElementById('thermoResult'); const stat=document.getElementById('thermoStatus'); if(panel) panel.style.display=''; renderPlan(plan, out, stat);
+				location.hash='#tab-log'; aggressiveScrollTop();
+			}catch(e){ console.warn('genThermoPlan safety handler error', e); }
+		});
+	})();
 	attach('#newTrip', 'click', async () => {
 					const id = uid();
 					state.trips[id] = { id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now() };
