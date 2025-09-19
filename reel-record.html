@@ -1222,6 +1222,34 @@
 			clouds:$('#clouds').value,
 			gearNotes:$('#gearNotes')?$('#gearNotes').value:''
 		});
+		// Parse manual GPS input into lastLat/lastLon if provided
+		try{
+			const gpsEl = document.getElementById('gps');
+			if(gpsEl){
+				const raw = (gpsEl.value||'').trim();
+				if(raw && raw.includes(',')){
+					const parts = raw.split(',');
+					const la = parseFloat(parts[0]);
+					const lo = parseFloat(parts[1]);
+					if(isFinite(la)&&isFinite(lo) && Math.abs(la)<=90 && Math.abs(lo)<=180){
+						state.trips[id].header.lastLat = la.toFixed(5);
+						state.trips[id].header.lastLon = lo.toFixed(5);
+					}
+				}
+			}
+			// Fallback: if port looks like coordinates and lastLat not set
+			if(!state.trips[id].header.lastLat && state.trips[id].header.port && state.trips[id].header.port.includes(',')){
+				const rawP = state.trips[id].header.port.trim();
+				const pp = rawP.split(',');
+				if(pp.length>=2){
+					const la2=parseFloat(pp[0]); const lo2=parseFloat(pp[1]);
+					if(isFinite(la2)&&isFinite(lo2) && Math.abs(la2)<=90 && Math.abs(lo2)<=180){
+						state.trips[id].header.lastLat = la2.toFixed(5);
+						state.trips[id].header.lastLon = lo2.toFixed(5);
+					}
+				}
+			}
+		}catch(_){ }
 		// slug
 		try{ state.trips[id].header.slug = buildSlugFromHeader(state.trips[id].header); }catch(_){ }
 		state.trips[id].updatedAt=Date.now();
