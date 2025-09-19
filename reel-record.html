@@ -237,13 +237,7 @@
 				<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
 					<div class="section-title">Log a catch / bite</div>
 					<div style="position:relative">
-						<button id="logBiteBtn" class="icon-btn" type="button" title="Log a bite" aria-haspopup="true" aria-expanded="false">🎣✖</button>
-						<div id="logBiteMenu" class="menu-list" hidden style="right:0; left:auto; min-width:200px">
-							<div class="menu-label">Log Bite on...</div>
-							<button class="menu-link" data-bite="Downrigger" type="button">Downrigger</button>
-							<button class="menu-link" data-bite="Planer Board" type="button">Planer Board</button>
-							<button class="menu-link" data-bite="Dipsy" type="button">Dipsy Diver</button>
-						</div>
+						<button id="logBiteBtn" class="btn secondary sm" type="button" title="Quick log a bite (no fish yet)">Log Bite</button>
 					</div>
 				</div>
 				<div class="grid cols-3">
@@ -659,26 +653,32 @@
 				try{ const td=document.getElementById('targetDepth'); if(td && td.value==='') td.focus(); }catch(_){ }
 			});
 
-	// Bite quick-log menu wiring
+	// Bite quick-log prompt
 	(function(){
-		const btn=document.getElementById('logBiteBtn'); const menu=document.getElementById('logBiteMenu'); if(!btn||!menu) return;
-		let open=false;
-		function openMenu(){ if(open) return; menu.hidden=false; btn.setAttribute('aria-expanded','true'); open=true; }
-		function closeMenu(){ if(!open) return; menu.hidden=true; btn.setAttribute('aria-expanded','false'); open=false; }
-		btn.addEventListener('click', (e)=>{ e.stopPropagation(); open? closeMenu(): openMenu(); });
-		document.addEventListener('click', (e)=>{ if(open && !menu.contains(e.target) && e.target!==btn) closeMenu(); });
-		menu.querySelectorAll('[data-bite]').forEach(b=>{
-			b.addEventListener('click', ()=>{
-				try{ ensureTrip(); }catch(_){ }
-				const platform=b.getAttribute('data-bite')||'';
-				const id=currentTripId(); if(!id) { closeMenu(); return; }
-				const t=state.trips[id]; if(!t) { closeMenu(); return; }
-				const d=new Date(); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0');
-				const entry={ id:uid(), time:`${hh}:${mm}`, platform, isBite:true, ts:Date.now(), notes:'Bite (no fish)' };
-				t.entries.push(entry); t.updatedAt=Date.now(); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge();
-				toast('Bite logged: '+platform); setTimeout(hideToast, 1100);
-				closeMenu();
-			});
+		const btn = document.getElementById('logBiteBtn');
+		if(!btn) return;
+		btn.addEventListener('click', ()=>{
+			try{ ensureTrip(); }catch(_){ }
+			const id=currentTripId(); if(!id) { toast('Start a trip first'); setTimeout(hideToast, 1400); return; }
+			const t=state.trips[id]; if(!t) return;
+			// Build platform list from current select options for consistency
+			const platSel = document.getElementById('platform');
+			let options = [];
+			if(platSel){ options = Array.from(platSel.options).map(o=>o.value).filter(v=>v); }
+			if(!options.length){ options = ['Downrigger','Planer Board','Dipsy Diver','Copper','Leadcore']; }
+			const choice = prompt('Log bite on which platform?\n'+options.map((o,i)=>`${i+1}. ${o}`).join('\n')+'\n(Type name or number)');
+			if(choice===null) return; // cancelled
+			let platform = choice.trim();
+			if(/^[0-9]+$/.test(platform)){
+				const idx = parseInt(platform,10)-1; if(idx>=0 && idx<options.length) platform = options[idx];
+			}
+			// Fuzzy match (case-insensitive startswith)
+			const found = options.find(o=> o.toLowerCase()===platform.toLowerCase()) || options.find(o=> o.toLowerCase().startsWith(platform.toLowerCase()));
+			if(found) platform = found; else if(!platform){ toast('No platform entered'); setTimeout(hideToast, 1200); return; }
+			const d=new Date(); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0');
+			const entry={ id:uid(), time:`${hh}:${mm}`, platform, isBite:true, ts:Date.now(), notes:'Bite (no fish)' };
+			t.entries.push(entry); t.updatedAt=Date.now(); save(); indicateSaved(); renderEntries(); renderSummary(); renderAnalytics(); updateLogBadge();
+			toast('Bite logged: '+platform); setTimeout(hideToast, 1100);
 		});
 	})();
 	attach('#nowBtn', 'click', setNow);
