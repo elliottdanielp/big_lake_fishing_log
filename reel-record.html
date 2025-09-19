@@ -1369,7 +1369,27 @@
 		// Header fields list for reference (ensure Apps Script maps them):
 		// date, startTime, port, boat, crew, hours, airTemp, surfaceTemp, wind, waves, clouds, gearNotes,
 		// lastLat, lastLon, lastPlanAt, conditionsCachedAt, slug
-		const payload = { secret: secret || '', trip: t };
+		// Provide a flattened header copy to make server mapping simpler / backward compatible.
+		const headerFlat = {
+			date: hdr.date||'',
+			startTime: hdr.startTime||'',
+			port: hdr.port||'',
+			boat: hdr.boat||'',
+			crew: hdr.crew||'',
+			hours: hdr.hours||'',
+			airTemp: hdr.airTemp||'',
+			surfaceTemp: hdr.surfaceTemp||'',
+			wind: hdr.wind||'',
+			waves: hdr.waves||'',
+			clouds: hdr.clouds||'',
+			gearNotes: hdr.gearNotes||'',
+			lastLat: hdr.lastLat||'',
+			lastLon: hdr.lastLon||'',
+			lastPlanAt: hdr.lastPlanAt||'',
+			conditionsCachedAt: hdr.conditionsCachedAt||'',
+			slug: hdr.slug || hdr.tripSlug || ''
+		};
+		const payload = { secret: secret || '', version: 2, header: headerFlat, trip: t };
 		try{
 			const r = await fetch(url, { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
 			if(!r.ok){ console.warn('pushFullTrip failed HTTP', r.status); // try no-cors fallback
