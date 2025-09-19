@@ -490,6 +490,7 @@
 			// Ungate + slug + persist
 			try{ document.getElementById('tab-setup')?.classList.remove('pending-conditions'); }catch(_){ }
 			try{ generateTripSlug(); updateTripSlugDisplay(); refreshTripSelect(); }catch(_){ }
+			trip.header.conditionsAutoAt = trip.header.conditionsAutoAt || Date.now();
 			trip.updatedAt = Date.now(); save(); indicateSaved();
 			const cc=document.getElementById('conditionsCached'); if(cc) cc.textContent = new Date().toLocaleTimeString();
 		}catch(err){ console.warn('runCatchConditionsGPS failed', err); toast('Location failed'); }
@@ -522,20 +523,54 @@
 	// Lure conditional visibility logic
 	function updateLureVisibility(){ try{ const lt=$('#lureType')?$('#lureType').value:''; const attr=$('#attractor')&&$('#attractor').closest('div'); const fly=$('#flyMeat')&&$('#flyMeat').closest('div'); if(!attr||!fly) return; const hideAll=(lt==='Spoon'||lt==='Plug'||lt==='Other'); if(hideAll){ attr.style.display='none'; fly.style.display='none'; return; } const need=(lt==='Flasher/Fly'||lt==='Meat Rig'); attr.style.display = need? '' : 'none'; fly.style.display = need? '' : 'none'; }catch(_){ } }
 	attach('#lureType','change', updateLureVisibility); setTimeout(updateLureVisibility, 300);
-	// Optional safety: ensure genThermoPlan click reveals panel & scrolls
+	// Advanced thermocline fusion handler (multi-station + include=profile)
 	(function wireThermoPlanOnce(){
 		if(window._genThermoPlanWired) return; window._genThermoPlanWired=true;
 		attach('#genThermoPlan','click', async ()=>{
+			const btn=document.getElementById('genThermoPlan');
+			const panel=document.getElementById('thermoPlanPanel');
+			const out=document.getElementById('thermoResult');
+			const stat=document.getElementById('thermoStatus');
+			const t=state.trips[currentTripId()]; const hdr=t && t.header || {};
+			const lat=parseFloat(hdr.lastLat||''); const lon=parseFloat(hdr.lastLon||'');
+			if(!Number.isFinite(lat) || !Number.isFinite(lon)){ toast('Run Catch Conditions first'); return; }
+			if(panel) panel.style.display='';
+			if(btn){ btn.disabled=true; btn.dataset.origTxt=btn.textContent; btn.textContent='Planning...'; }
+			if(stat) stat.textContent='Gathering nearby station profiles...';
+			if(out) out.innerHTML='';
 			try{
-				const t=state.trips[currentTripId()]; const hdr=t && t.header || {};
-				const lat = parseFloat(hdr.lastLat||''); const lon = parseFloat(hdr.lastLon||'');
-				if(!Number.isFinite(lat) || !Number.isFinite(lon)){ toast('Run Catch Conditions first'); return; }
-				const sstC = hdr.surfaceTemp ? (Number(hdr.surfaceTemp)-32)*5/9 : null;
-				const plan = estimateFromHistory(t, sstC);
-				if(t){ t.header.lastPlanAt = Date.now(); save(); }
-				const panel=document.getElementById('thermoPlanPanel'); const out=document.getElementById('thermoResult'); const stat=document.getElementById('thermoStatus'); if(panel) panel.style.display=''; renderPlan(plan, out, stat);
+				// Station selection: two-pass (<=45 km up to 18) expand to (<=65 km up to 25)
+				const stations=(window.__stations||[]).slice();
+				if(!stations.length){ if(stat) stat.textContent='No station list available'; return; }
+				function select(list, radius, max){ return list.map(s=>({s, d:haversineKm(lat,lon,s.lat,s.lon)})).filter(x=>x.d<=radius).sort((a,b)=>a.d-b.d).slice(0,max).map(x=>x.s); }
+				let chosen=select(stations,45,18); if(!chosen.length) chosen=select(stations,65,25);
+				if(stat) stat.textContent=`Fetching ${chosen.length} stations...`;
+				const tpl=(state.settings && state.settings.stationJsonTemplate)? String(state.settings.stationJsonTemplate).trim():'';
+				const profiles=[];
+				if(tpl && chosen.length){
+					for(const s of chosen){
+						try{
+							let url=tpl.replace('{station}', encodeURIComponent(s.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+							const sep=url.includes('?')?'&':'?';
+							url = `${url}${sep}include=profile`;
+							const r=await fetch(url,{cache:'no-store'}); if(!r.ok) continue; const js=await r.json();
+							const norm=normalizeProfile(js,s,lat,lon); if(norm){ profiles.push(perStationThermo(norm)); }
+						}catch(e){ /* ignore single station errors */ }
+					}
+				}
+				let fused=null;
+				if(profiles.length){ fused=fuseThermo(profiles,{lat,lon}); }
+				// fallback: estimate from history
+				if(!fused || (!isFinite(fused.cline_m) && !isFinite(fused.iso10_m) && !isFinite(fused.iso12_m))){
+					const sstC = hdr.surfaceTemp? (Number(hdr.surfaceTemp)-32)*5/9 : null;
+					fused = estimateFromHistory(t, sstC); fused.sources = fused.sources||0; if(stat) stat.textContent='Estimated from recent history';
+				}else if(stat){ stat.textContent='Plan ready'; }
+				// Persist
+				if(t){ t.header.lastPlanAt=Date.now(); t.header.thermoPlan=fused; save(); }
+				renderPlan(fused,out,stat);
 				location.hash='#tab-log'; aggressiveScrollTop();
-			}catch(e){ console.warn('genThermoPlan safety handler error', e); }
+			}catch(e){ console.warn('Thermocline plan error', e); if(stat) stat.textContent='Plan failed'; }
+			finally{ if(btn){ btn.disabled=false; btn.textContent=btn.dataset.origTxt||'Generate plan'; } }
 		});
 	})();
 	attach('#newTrip', 'click', async () => {
