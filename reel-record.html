@@ -126,6 +126,13 @@
 	#tab-setup.pending-conditions .needs-conditions { display:none !important; }
 	#tab-setup.pending-conditions .await-conditions { display:block !important; }
 	.await-conditions { display:none; font-size:14px; margin-top:8px; color:var(--muted); }
+	/* lightweight note block (mirrors index.html) */
+	.note { background:#0c111a; border:1px solid #223145; border-radius:12px; padding:10px 12px; color:#cfe3ff; font-size:14px; line-height:1.5; }
+	.confidence-bar { position:relative; background:#1b2532; border:1px solid #243349; border-radius:8px; height:14px; overflow:hidden; }
+	.confidence-bar .fill { position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg,#ff6b6b,#ffd166,#2ed0a2); width:0%; transition:width .4s ease; }
+	.station-row-good { background:rgba(46,208,162,0.08); }
+	.station-row-mid { background:rgba(255,209,102,0.08); }
+	.station-row-far { background:rgba(255,107,107,0.08); }
 	</style>
 </head>
 <body>
@@ -160,12 +167,9 @@
 	<main class="wrap">
 		<section id="tab-setup" class="grid">
 			<div class="card">
-				<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-					<div class="section-title">Trip header</div>
-					<button class="btn xs" id="fetchConditions" type="button" title="Use GPS to auto-fill conditions">Catch Conditions (GPS)</button>
-				</div>
-				<div class="row needs-conditions" style="margin-top:8px">
-					<button id="genThermoPlan" class="btn secondary" type="button">Generate plan</button>
+				<div style="text-align:center; margin-bottom:10px">
+					<div id="tripHeaderTitle" class="section-title" style="margin-bottom:6px">New Trip</div>
+					<button class="btn xs" style="max-width:260px;margin:0 auto" id="fetchConditions" type="button" title="Use GPS to auto-fill conditions">Catch Conditions (GPS)</button>
 				</div>
 				<div class="await-conditions">Tap <b>Catch Conditions (GPS)</b> to unlock trip fields.</div>
 				<div class="grid cols-1 needs-conditions" style="margin-top:8px">
@@ -405,6 +409,7 @@
 				<div class="prefs-row">
 						<label class="switch"><input type="checkbox" id="prefQuickDefault"/> Quick mode by default</label>
 						<label class="switch"><input type="checkbox" id="prefSticky" checked/> Sticky lure fields</label>
+						<label class="switch"><input type="checkbox" id="prefDualUnits"/> Show metric + imperial</label>
 					</div>
 				<div style="margin-top:12px">
 					<label for="marineJsonUrl">Optional: Marine data JSON URL (public)</label>
@@ -501,15 +506,51 @@
 	function attach(selector, evt, handler) { const el = document.querySelector(selector); if (el) el.addEventListener(evt, handler); }
 	const onReady = (fn) => { if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', fn); else fn(); };
 	onReady(() => {
+			// Load preferences into checkboxes
+			try {
+				const q=$('#prefQuickDefault'); if(q) q.checked=!!state.settings.quickMode;
+				const s=$('#prefSticky'); if(s) s.checked=!!state.settings.sticky;
+				const d=$('#prefDualUnits'); if(d) d.checked=!!state.settings.dualUnits;
+			} catch(_){ }
+			attach('#savePrefs','click', ()=>{
+				try{
+					const q=$('#prefQuickDefault'); if(q) state.settings.quickMode = q.checked;
+					const s=$('#prefSticky'); if(s) state.settings.sticky = s.checked;
+					const d=$('#prefDualUnits'); if(d) state.settings.dualUnits = d.checked;
+					save(); indicateSaved();
+					toast('Preferences saved'); setTimeout(hideToast,1100);
+					// Re-render plan & marine snapshot if present for unit toggle
+					try{ const t=state.trips[currentTripId()]; const plan=t && t.header && t.header.thermoPlan; if(plan){ renderPlan(plan, document.getElementById('thermoResult'), document.getElementById('thermoStatus')); } }catch(_){ }
+					try{ const t=state.trips[currentTripId()]; const snap=t && t.header && t.header.marineSnapshot; if(snap){ renderMarineSnapshot(snap, document.getElementById('marineSnapResult'), document.getElementById('marineSnapStatus')); } }catch(_){ }
+				}catch(e){ toast('Save failed'); }
+			});
+			// Hamburger menu toggle (mirrors index.html behavior)
+			try {
+				const toggle = document.getElementById('navToggleRR');
+				const menu = document.getElementById('navMenuRR');
+				if(toggle && menu){
+					let lastFocused=null;
+					function open(){ lastFocused=document.activeElement; menu.hidden=false; toggle.setAttribute('aria-expanded','true'); requestAnimationFrame(()=> menu.classList.add('open')); const f=menu.querySelector('a,button'); if(f) f.focus(); document.addEventListener('click', onDocClick); document.addEventListener('keydown', onKey); }
+					function close(){ menu.classList.remove('open'); setTimeout(()=>{ menu.hidden=true; },120); toggle.setAttribute('aria-expanded','false'); document.removeEventListener('click', onDocClick); document.removeEventListener('keydown', onKey); if(lastFocused) lastFocused.focus(); lastFocused=null; }
+					function onDocClick(e){ if(!menu.contains(e.target) && e.target!==toggle) close(); }
+					function onKey(e){ if(e.key==='Escape') { close(); return; } if(e.key==='Tab' && !menu.hidden){ const f=Array.from(menu.querySelectorAll('a,button')).filter(el=>!el.disabled); if(!f.length) return; const first=f[0], last=f[f.length-1]; if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } } }
+					toggle.addEventListener('click', (e)=>{ e.stopPropagation(); if(menu.hidden) open(); else close(); });
+					menu.querySelectorAll('a').forEach(a=> a.addEventListener('click', ()=> setTimeout(close, 60)));
+				}
+			}catch(e){ console.warn('Menu wiring failed', e); }
 				// Prevent browser from restoring previous scroll position on hash changes
 				try{ if('scrollRestoration' in history) history.scrollRestoration = 'manual'; }catch(_){}
 			// All other event listeners below (move all listeners inside this block)
 	attach('#fetchConditions', 'click', async () => { await runCatchConditionsGPS(); });
 	attach('#saveTrip', 'click', async () => {
-		await runCatchConditionsGPS();
+		const id = currentTripId();
+		const trip = id && state.trips[id];
+		const hdr = trip && trip.header || {};
+		// Require conditions first
+		if(!hdr.conditionsCachedAt){ toast('Fetch Catch Conditions (GPS) first'); return; }
 		saveHeader();
-		try{ const panel=document.getElementById('thermoPlanPanel'); if(panel) panel.style.display=''; }catch(_){ }
-		try{ const genBtn=document.getElementById('genThermoPlan'); if(genBtn) genBtn.click(); }catch(_){ }
+		// Generate plan inline
+		await generateThermoPlan();
 		aggressiveScrollTop();
 	});
 	// Regenerate slug when date/startTime/port change
@@ -523,56 +564,45 @@
 	// Lure conditional visibility logic
 	function updateLureVisibility(){ try{ const lt=$('#lureType')?$('#lureType').value:''; const attr=$('#attractor')&&$('#attractor').closest('div'); const fly=$('#flyMeat')&&$('#flyMeat').closest('div'); if(!attr||!fly) return; const hideAll=(lt==='Spoon'||lt==='Plug'||lt==='Other'); if(hideAll){ attr.style.display='none'; fly.style.display='none'; return; } const need=(lt==='Flasher/Fly'||lt==='Meat Rig'); attr.style.display = need? '' : 'none'; fly.style.display = need? '' : 'none'; }catch(_){ } }
 	attach('#lureType','change', updateLureVisibility); setTimeout(updateLureVisibility, 300);
-	// Advanced thermocline fusion handler (multi-station + include=profile)
-	(function wireThermoPlanOnce(){
-		if(window._genThermoPlanWired) return; window._genThermoPlanWired=true;
-		attach('#genThermoPlan','click', async ()=>{
-			const btn=document.getElementById('genThermoPlan');
-			const panel=document.getElementById('thermoPlanPanel');
-			const out=document.getElementById('thermoResult');
-			const stat=document.getElementById('thermoStatus');
-			const t=state.trips[currentTripId()]; const hdr=t && t.header || {};
-			const lat=parseFloat(hdr.lastLat||''); const lon=parseFloat(hdr.lastLon||'');
-			if(!Number.isFinite(lat) || !Number.isFinite(lon)){ toast('Run Catch Conditions first'); return; }
-			if(panel) panel.style.display='';
-			if(btn){ btn.disabled=true; btn.dataset.origTxt=btn.textContent; btn.textContent='Planning...'; }
-			if(stat) stat.textContent='Gathering nearby station profiles...';
-			if(out) out.innerHTML='';
-			try{
-				// Station selection: two-pass (<=45 km up to 18) expand to (<=65 km up to 25)
-				const stations=(window.__stations||[]).slice();
-				if(!stations.length){ if(stat) stat.textContent='No station list available'; return; }
-				function select(list, radius, max){ return list.map(s=>({s, d:haversineKm(lat,lon,s.lat,s.lon)})).filter(x=>x.d<=radius).sort((a,b)=>a.d-b.d).slice(0,max).map(x=>x.s); }
-				let chosen=select(stations,45,18); if(!chosen.length) chosen=select(stations,65,25);
-				if(stat) stat.textContent=`Fetching ${chosen.length} stations...`;
-				const tpl=(state.settings && state.settings.stationJsonTemplate)? String(state.settings.stationJsonTemplate).trim():'';
-				const profiles=[];
-				if(tpl && chosen.length){
-					for(const s of chosen){
-						try{
-							let url=tpl.replace('{station}', encodeURIComponent(s.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
-							const sep=url.includes('?')?'&':'?';
-							url = `${url}${sep}include=profile`;
-							const r=await fetch(url,{cache:'no-store'}); if(!r.ok) continue; const js=await r.json();
-							const norm=normalizeProfile(js,s,lat,lon); if(norm){ profiles.push(perStationThermo(norm)); }
-						}catch(e){ /* ignore single station errors */ }
-					}
+	// Unified plan generation function (was #genThermoPlan handler)
+	async function generateThermoPlan(){
+		const panel=document.getElementById('thermoPlanPanel');
+		const out=document.getElementById('thermoResult');
+		const stat=document.getElementById('thermoStatus');
+		const t=state.trips[currentTripId()]; const hdr=t && t.header || {};
+		const lat=parseFloat(hdr.lastLat||''); const lon=parseFloat(hdr.lastLon||'');
+		if(!Number.isFinite(lat) || !Number.isFinite(lon)){ toast('Run Catch Conditions first'); return; }
+		if(panel) panel.style.display='';
+		if(stat) stat.textContent='Gathering nearby station profiles...';
+		if(out) out.innerHTML='';
+		try{
+			const stations=(window.__stations||[]).slice();
+			if(!stations.length){ if(stat) stat.textContent='No station list available'; return; }
+			function select(list, radius, max){ return list.map(s=>({s, d:haversineKm(lat,lon,s.lat,s.lon)})).filter(x=>x.d<=radius).sort((a,b)=>a.d-b.d).slice(0,max).map(x=>x.s); }
+			let chosen=select(stations,45,18); if(!chosen.length) chosen=select(stations,65,25);
+			if(stat) stat.textContent=`Fetching ${chosen.length} stations...`;
+			const tpl=(state.settings && state.settings.stationJsonTemplate)? String(state.settings.stationJsonTemplate).trim():'';
+			const profiles=[];
+			if(tpl && chosen.length){
+				for(const s of chosen){
+					try{
+						let url=tpl.replace('{station}', encodeURIComponent(s.id)).replace('{lat}', encodeURIComponent(lat)).replace('{lon}', encodeURIComponent(lon));
+						const sep=url.includes('?')?'&':'?';
+						url = `${url}${sep}include=profile`;
+						const r=await fetch(url,{cache:'no-store'}); if(!r.ok) continue; const js=await r.json();
+						const norm=normalizeProfile(js,s,lat,lon); if(norm){ profiles.push(perStationThermo(norm)); }
+					}catch(e){ }
 				}
-				let fused=null;
-				if(profiles.length){ fused=fuseThermo(profiles,{lat,lon}); }
-				// fallback: estimate from history
-				if(!fused || (!isFinite(fused.cline_m) && !isFinite(fused.iso10_m) && !isFinite(fused.iso12_m))){
-					const sstC = hdr.surfaceTemp? (Number(hdr.surfaceTemp)-32)*5/9 : null;
-					fused = estimateFromHistory(t, sstC); fused.sources = fused.sources||0; if(stat) stat.textContent='Estimated from recent history';
-				}else if(stat){ stat.textContent='Plan ready'; }
-				// Persist
-				if(t){ t.header.lastPlanAt=Date.now(); t.header.thermoPlan=fused; save(); }
-				renderPlan(fused,out,stat);
-				location.hash='#tab-log'; aggressiveScrollTop();
-			}catch(e){ console.warn('Thermocline plan error', e); if(stat) stat.textContent='Plan failed'; }
-			finally{ if(btn){ btn.disabled=false; btn.textContent=btn.dataset.origTxt||'Generate plan'; } }
-		});
-	})();
+			}
+			let fused=null; if(profiles.length){ fused=fuseThermo(profiles,{lat,lon}); }
+			if(!fused || (!isFinite(fused.cline_m) && !isFinite(fused.iso10_m) && !isFinite(fused.iso12_m))){
+				const sstC = hdr.surfaceTemp? (Number(hdr.surfaceTemp)-32)*5/9 : null;
+				fused = estimateFromHistory(t, sstC); fused.sources = fused.sources||0; if(stat) stat.textContent='Estimated from recent history';
+			}else if(stat){ stat.textContent='Ready'; }
+			if(t){ t.header.lastPlanAt=Date.now(); t.header.thermoPlan=fused; save(); }
+			renderPlan(fused,out,stat);
+		}catch(e){ console.warn('Thermocline plan error', e); if(stat) stat.textContent='Plan failed'; }
+	}
 	attach('#newTrip', 'click', async () => {
 					const id = uid();
 					state.trips[id] = { id, header:{}, entries:[], active:false, createdAt:Date.now(), updatedAt:Date.now() };
@@ -1032,18 +1062,26 @@
 		}
 
 		function renderMarineSnapshot(data, outEl, statusEl){
+			const dual = !!(state && state.settings && state.settings.dualUnits);
 			const pills = [];
-			if(typeof data.sstC === 'number'){ const f = Math.round((data.sstC*9/5)+32); pills.push(`<span class="pill badge">SST ${f}°F</span>`); }
-			if(typeof data.waveM === 'number'){ const ft = (data.waveM*3.28084).toFixed(1); pills.push(`<span class="pill badge">Waves ${ft} ft</span>`); }
-			if(typeof data.periodS === 'number'){ pills.push(`<span class="pill badge">Period ${data.periodS.toFixed(0)} s</span>`); }
-			if(typeof data.waveDirDeg === 'number'){ const d = Math.round(data.waveDirDeg); pills.push(`<span class="pill badge">Dir ${d}°</span>`); }
+			if(typeof data.sstC === 'number'){
+				const f = Math.round((data.sstC*9/5)+32);
+				const cTxt = dual? ` / ${data.sstC.toFixed(1)}°C` : '';
+				pills.push(`<span class=\"pill badge\">SST ${f}°F${cTxt}</span>`);
+			}
+			if(typeof data.waveM === 'number'){
+				const ft = (data.waveM*3.28084).toFixed(1);
+				const mTxt = dual? ` / ${data.waveM.toFixed(2)} m` : '';
+				pills.push(`<span class=\"pill badge\">Waves ${ft} ft${mTxt}</span>`);
+			}
+			if(typeof data.periodS === 'number'){ pills.push(`<span class=\"pill badge\">Period ${data.periodS.toFixed(0)} s</span>`); }
+			if(typeof data.waveDirDeg === 'number'){ const d = Math.round(data.waveDirDeg); pills.push(`<span class=\"pill badge\">Dir ${d}°</span>`); }
 			const conf = Math.round(((data.conf||0)*100));
-			// Optional sources list
 			let sourcesHtml = '';
 			if(Array.isArray(data.sourcesDetail) && data.sourcesDetail.length){
 				const rows = data.sourcesDetail.map(s=>{
-					const f = typeof s.sstC==='number' ? Math.round((s.sstC*9/5)+32)+'°F' : '—';
-					const w = typeof s.waveM==='number' ? (s.waveM*3.28084).toFixed(1)+' ft' : '—';
+					const f = typeof s.sstC==='number' ? Math.round((s.sstC*9/5)+32)+'°F'+ (dual? ` / ${s.sstC.toFixed(1)}°C`:'') : '—';
+					const w = typeof s.waveM==='number' ? (s.waveM*3.28084).toFixed(1)+' ft'+ (dual? ` / ${s.waveM.toFixed(2)} m`:'') : '—';
 					const per = typeof s.periodS==='number' ? s.periodS.toFixed(0)+' s' : '—';
 					const dir = typeof s.waveDirDeg==='number' ? Math.round(s.waveDirDeg)+'°' : '—';
 					return `<li style=\"margin:6px 0\"><b>${s.name}</b> <span class=\"muted\">(${s.id})</span> — ${s.dKm.toFixed(1)} km • ${s.ageH.toFixed(1)} h • SST ${f}, Waves ${w}, Period ${per}, Dir ${dir}</li>`;
@@ -1058,7 +1096,7 @@
 			if(statusEl) statusEl.textContent = 'Snapshot updated';
 		}
 	const LS_KEY = 'blfl.state.v2';
-	let state = load() || { trips: {}, lists: defaults(), dataVersion:3, settings:{quickMode:false, sticky:true} };
+	let state = load() || { trips: {}, lists: defaults(), dataVersion:3, settings:{quickMode:false, sticky:true, dualUnits:false} };
 	let pendingMarineUndo = null;
 		function defaults(){ return { Platform:["Downrigger","Dipsy","Copper","Leadcore","Planer Board","Flatline"], LineType:["Wire","Braid","Mono","Fluorocarbon","Copper","Leadcore"], LureType:["Spoon","Plug","Flasher/Fly","Meat Rig","Spin-n-Glow","Other"], LureColors:["NBK","Blue Dolphin","UV Blue/Green","Glow Green","Glow White","Orange/Silver","Green Dolphin","UV Stud","Blue Bubble","Chrome/Green","Chrome/Blue","Bloody Nose"], Attractors:["8\" White Crush","8\" UV Stud","11\" Chrome-Green","11\" White Paddle","8\" Blue Bubble","8\" Green Dot"], FlyMeat:["Blue Fly","Green Fly","Blue/Green Fly","Green Meat","Blue Meat","UV Fly"], Species:["Chinook (King)","Coho","Steelhead","Lake Trout","Brown Trout","Other"], TrollDirection:["N","NE","E","SE","S","SW","W","NW"], Clouds:["Clear","Partly","Overcast","Fog"], HookLocation:["Jaw","Corner","Tongue","Outside"] }; }
 	function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -1121,8 +1159,8 @@
 	// Determine active via explicit flag set on Start Trip and cleared on End/New
 	function isTripActive(){ const t=state.trips[currentTripId()]; return !!(t && t.active === true); }
 	function applyActiveTripGating(){ const active = isTripActive(); const logSec = document.getElementById('tab-log'); if(logSec){ if(active) logSec.classList.remove('hide'); else logSec.classList.add('hide'); }
-		// Title: strictly based on active flag
-	try{ const headerTitle = document.querySelector('#tab-setup .section-title'); if(headerTitle){ headerTitle.textContent = active ? 'Edit Setup' : 'New Trip'; headerTitle.style.color = active ? 'var(--accent-2)' : ''; } }catch(e){}
+		// Title: strictly based on active flag (prefer dedicated tripHeaderTitle element)
+	try{ const headerTitle = document.getElementById('tripHeaderTitle') || document.querySelector('#tab-setup .section-title'); if(headerTitle){ headerTitle.textContent = active ? 'Edit Setup' : 'New Trip'; headerTitle.style.color = active ? 'var(--accent-2)' : ''; } }catch(e){}
 		// Menu: hide Catch Log link when inactive
 		try{ const logLink = document.querySelector('#navMenuRR a[href="#tab-log"]'); if(logLink){ logLink.style.display = active ? '' : 'none'; } }catch(e){}
 	}
@@ -1400,16 +1438,87 @@
 	function wMean(pairs){ const num = pairs.reduce((s,[v,w])=> s+v*w,0); const den=pairs.reduce((s,[_,w])=> s+w,0)||1e-6; return num/den; }
 	function wStd(pairs, mean){ const m=mean==null? wMean(pairs): mean; const num = pairs.reduce((s,[v,w])=> s+w*(v-m)**2,0); const den=pairs.reduce((s,[_,w])=> s+w,0)||1e-6; return Math.sqrt(num/den); }
 	function renderPlan(plan, outEl, statusEl){
-		if(!outEl) return; if(!plan){ outEl.textContent='No plan'; return; }
-		const parts=[];
-		if(isFinite(plan.cline_m)) parts.push(`<div class="chip">Thermocline ~ <b>${(plan.cline_m*3.28084).toFixed(0)} ft</b></div>`);
-		if(isFinite(plan.iso12_m)) parts.push(`<div class="chip">12°C ≈ <b>${(plan.iso12_m*3.28084).toFixed(0)} ft</b></div>`);
-		if(isFinite(plan.iso10_m)) parts.push(`<div class="chip">10°C ≈ <b>${(plan.iso10_m*3.28084).toFixed(0)} ft</b></div>`);
-		if(!parts.length){ parts.push('<div class="chip">Estimated band unavailable</div>'); }
+		if(!outEl) return; if(!plan){ outEl.textContent='No plan'; if(statusEl) statusEl.textContent='No data'; return; }
+		const dual = !!(state && state.settings && state.settings.dualUnits);
+		const ft = m => (m*3.28084);
+		let conf = 0;
+		if(Array.isArray(plan.stations) && plan.stations.length){
+			const sumW = plan.stations.reduce((s,x)=> s+(x.w||0),0);
+			conf = Math.max(0, Math.min(1, sumW / (plan.stations.length||1)));
+		}else if(plan.sources){
+			conf = Math.min(1, (plan.sources||0)/6);
+		}
+		function fmtDepth(mVal){ if(!isFinite(mVal)) return '—'; const f=ft(mVal); return dual? `${f.toFixed(0)} ft / ${(mVal).toFixed(1)} m` : `${f.toFixed(0)} ft`; }
+		function bandText(){
+			if(isFinite(plan.cline_m)){ const c=ft(plan.cline_m); const low=Math.max(5, c-10); const high=c+10; const add = dual? ` (${(low/3.28084).toFixed(1)}–${(high/3.28084).toFixed(1)} m)` : '' ; return `${low.toFixed(0)}–${high.toFixed(0)} ft${add} focus`; }
+			if(isFinite(plan.iso12_m) && isFinite(plan.iso10_m)){ const hi=ft(plan.iso12_m), lo=ft(plan.iso10_m); const add = dual? ` (${(plan.iso12_m).toFixed(1)}–${(plan.iso10_m).toFixed(1)} m)` : ''; return `${hi.toFixed(0)}–${lo.toFixed(0)} ft${add} thermal window`; }
+			return 'Thermal band ~50–80 ft (seasonal default)';
+		}
+		let recoRiggers='—', recoBoards='—', spoonBand='—', flasherBand='—', meatBand='—';
+		if(isFinite(plan.cline_m)){
+			const c=ft(plan.cline_m);
+			recoRiggers = `${(c-5).toFixed(0)} / ${(c+5).toFixed(0)} ft` + (dual? ` (${((c-5)/3.28084).toFixed(1)} / ${((c+5)/3.28084).toFixed(1)} m)`:'');
+			recoBoards = `${Math.max(15, c-25).toFixed(0)}–${Math.max(22, c-10).toFixed(0)} ft` + (dual? ` (${(Math.max(15,c-25)/3.28084).toFixed(1)}–${(Math.max(22,c-10)/3.28084).toFixed(1)} m)`:'');
+			spoonBand = `${(c-15).toFixed(0)}–${(c-5).toFixed(0)} ft` + (dual? ` (${((c-15)/3.28084).toFixed(1)}–${((c-5)/3.28084).toFixed(1)} m)`:'');
+			flasherBand = `${(c-10).toFixed(0)}–${(c).toFixed(0)} ft` + (dual? ` (${((c-10)/3.28084).toFixed(1)}–${((c)/3.28084).toFixed(1)} m)`:'');
+			meatBand = `${(c).toFixed(0)}–${(c+10).toFixed(0)} ft` + (dual? ` (${((c)/3.28084).toFixed(1)}–${((c+10)/3.28084).toFixed(1)} m)`:'');
+		}else if(isFinite(plan.iso12_m) || isFinite(plan.iso10_m)){
+			const top = isFinite(plan.iso12_m)? ft(plan.iso12_m): null; const bot = isFinite(plan.iso10_m)? ft(plan.iso10_m): null;
+			if(top && bot){
+				const mid=(top+bot)/2;
+				recoRiggers = `${mid.toFixed(0)} ft mid` + (dual? ` (${(mid/3.28084).toFixed(1)} m)`:'');
+				recoBoards = `${Math.max(15, top-15).toFixed(0)}–${Math.max(20, top-5).toFixed(0)} ft` + (dual? ` (${(Math.max(15, top-15)/3.28084).toFixed(1)}–${(Math.max(20, top-5)/3.28084).toFixed(1)} m)`:'');
+				spoonBand = `${(top-15).toFixed(0)}–${(top-5).toFixed(0)} ft` + (dual? ` (${((top-15)/3.28084).toFixed(1)}–${((top-5)/3.28084).toFixed(1)} m)`:'');
+				flasherBand = `${(top-8).toFixed(0)}–${(top+2).toFixed(0)} ft` + (dual? ` (${((top-8)/3.28084).toFixed(1)}–${((top+2)/3.28084).toFixed(1)} m)`:'');
+				meatBand = `${(top).toFixed(0)}–${(top+10).toFixed(0)} ft` + (dual? ` (${((top)/3.28084).toFixed(1)}–${((top+10)/3.28084).toFixed(1)} m)`:'');
+			}
+		}
 		const src = plan.sources || 0;
-		outEl.innerHTML = `<div class="grid cols-3" style="margin-top:4px">${parts.join('')}</div><div class="muted" style="margin-top:6px">Sources fused: <b>${src}</b>${plan.stations? ' • '+plan.stations.length+' stations considered':''}</div>`;
-		if(statusEl) statusEl.textContent = 'Plan ready';
+		let stationsHtml='';
+		if(Array.isArray(plan.stations) && plan.stations.length){
+			const rows = plan.stations.slice(0,10).map(s=>{
+				const dist = s.dKm.toFixed(1)+' km';
+				const age = s.ageH.toFixed(1)+' h';
+				const cl = isFinite(s.cline_m)? (dual? `${ft(s.cline_m).toFixed(0)} ft / ${s.cline_m.toFixed(1)} m` : `${ft(s.cline_m).toFixed(0)} ft`) : '';
+				let klass='station-row-far'; if(s.dKm<=15) klass='station-row-good'; else if(s.dKm<=35) klass='station-row-mid';
+				return `<tr class="${klass}"><td>${s.id}</td><td>${dist}</td><td>${age}</td><td>${cl}</td></tr>`;
+			}).join('');
+			stationsHtml = `<details style="margin-top:10px"><summary><strong>Stations (${plan.stations.length})</strong></summary><div class="table-wrap" style="margin-top:6px"><table style="min-width:480px"><thead><tr><th>ID</th><th>Dist</th><th>Age</th><th>Cline</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+		}
+		const chips=[];
+		if(isFinite(plan.cline_m)) chips.push(`<div class=\"chip\">Cline ~ <b>${fmtDepth(plan.cline_m)}</b></div>`);
+		if(isFinite(plan.iso12_m)) chips.push(`<div class=\"chip\">12°C / 53.6°F ~ <b>${fmtDepth(plan.iso12_m)}</b></div>`);
+		if(isFinite(plan.iso10_m)) chips.push(`<div class=\"chip\">10°C / 50.0°F ~ <b>${fmtDepth(plan.iso10_m)}</b></div>`);
+		if(!chips.length) chips.push('<div class=\"chip\">Historical estimate only</div>');
+		const confPct = Math.round(conf*100);
+		const html = `
+			<div class=\"note\">
+				<strong>Thermal Band:</strong> ${bandText()}<br/>
+				<strong>Rigger Starts:</strong> ${recoRiggers} &nbsp; • &nbsp; <strong>Board / High:</strong> ${recoBoards}<br/>
+				<span class=\"small\" style=\"color:var(--muted)\">Kings 42–50°F • Coho 50–55°F • Steelhead 55–62°F (run 10–15 ft above cline)</span>
+			</div>
+			<div style=\"margin-top:10px; display:flex; flex-direction:column; gap:8px\">
+				<div>
+					<div style=\"display:flex;justify-content:space-between;align-items:center;font-size:14px;margin-bottom:4px\"><span class=\"muted\">Confidence</span><span class=\"muted\">${confPct}%</span></div>
+					<div class=\"confidence-bar\"><div class=\"fill\" style=\"width:${confPct}%;\"></div></div>
+				</div>
+				<div class=\"grid cols-3\">${chips.join('')}</div>
+				<div class=\"note\" style=\"background:#101823;border-style:dashed;border-color:#2a3b44\">
+					<strong>Lure Depth Offsets (start spread)</strong><br/>
+					Spoons: ${spoonBand}<br/>
+					Flashers/Flies: ${flasherBand}<br/>
+					Meat / Big Paddle: ${meatBand}
+				</div>
+				<div class=\"muted\">Sources fused <b>${src}</b>${plan.stations? ' • '+plan.stations.length+' stations considered':''}</div>
+				${stationsHtml}
+			</div>
+		`;
+		outEl.innerHTML = html;
+		if(statusEl) statusEl.textContent = 'Ready';
 	}
+
+	// Celsius -> Fahrenheit helper for future reuse
+	function cToF(c){ return (c*9/5)+32; }
 	// Preload station list if not already present (id, name, lat, lon)
 	(function preloadStations(){ if(window.__stations && window.__stations.length) return; try{ fetch('stations.json').then(r=> r.ok? r.json():Promise.reject()).then(js=>{ if(Array.isArray(js)) window.__stations = js; }).catch(()=>{}); }catch(_){ } })();
 	</script>
