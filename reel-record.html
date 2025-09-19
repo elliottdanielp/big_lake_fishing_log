@@ -394,6 +394,7 @@
 					<div><label for="listSpecies">Species</label><textarea id="listSpecies"></textarea></div>
 					<div><label for="listTrollDir">Troll directions</label><textarea id="listTrollDir"></textarea></div>
 					<div><label for="listClouds">Cloud cover</label><textarea id="listClouds"></textarea></div>
+					<div><label for="listHookLoc">Hook locations</label><textarea id="listHookLoc"></textarea></div>
 				</div>
 				<div class="row">
 					<button class="btn good" id="saveLists">Save lists</button>
@@ -506,6 +507,8 @@
 	function attach(selector, evt, handler) { const el = document.querySelector(selector); if (el) el.addEventListener(evt, handler); }
 	const onReady = (fn) => { if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', fn); else fn(); };
 	onReady(() => {
+			// Ensure default lists seeded then populate Settings textareas (fix empty lists issue)
+			try { ensureListsSeeded(); listsToTextarea(); fillAllSelects(); } catch(e){ console.warn('List seed failed', e); }
 			// Load preferences into checkboxes
 			try {
 				const q=$('#prefQuickDefault'); if(q) q.checked=!!state.settings.quickMode;
@@ -1152,8 +1155,7 @@
 		location.hash = '#tab-log';
 		aggressiveScrollTop();
 		applyActiveTripGating();
-		// Attempt plan once if not yet generated
-		try{ const hdr=state.trips[id].header; const btn=document.getElementById('genThermoPlan'); if(btn && !hdr.lastPlanAt){ setTimeout(()=>{ try{ btn.click(); aggressiveScrollTop(); }catch(_){ } }, 500); } }catch(_){ }
+		// Removed legacy auto-click of obsolete #genThermoPlan button (plan now generated inline on Start Trip)
 	}
 
 	// Determine active via explicit flag set on Start Trip and cleared on End/New
